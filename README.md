@@ -2,10 +2,11 @@
 
 *Rust implementation of the [Nucleotide Archive Format (NAF)](https://github.com/KirillKryukov/naf)*.
 
-[![Actions](https://img.shields.io/github/workflow/status/althonos/naf.rs/Test?style=flat-square&maxAge=600)](https://github.com/althonos/naf.rs/actions)
+[![Actions](https://img.shields.io/github/actions/workflow/status/althonos/naf.rs/test.yml?branch=main&style=flat-square&maxAge=600)](https://github.com/althonos/naf.rs/actions)
 [![Codecov](https://img.shields.io/codecov/c/gh/althonos/naf.rs/master.svg?style=flat-square&maxAge=600)](https://codecov.io/gh/althonos/naf.rs)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square&maxAge=2678400)](https://choosealicense.com/licenses/mit/)
 [![Source](https://img.shields.io/badge/source-GitHub-303030.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/naf.rs)
+[![Mirror](https://img.shields.io/badge/mirror-EMBL-009f4d?style=flat-square&maxAge=2678400)](https://git.embl.de/larralde/naf.rs/)
 [![Crate](https://img.shields.io/crates/v/naf.svg?maxAge=600&style=flat-square)](https://crates.io/crates/naf)
 [![Documentation](https://img.shields.io/badge/docs.rs-latest-4d76ae.svg?maxAge=2678400&style=flat-square)](https://docs.rs/naf)
 [![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/naf.rs/blob/master/CHANGELOG.md)

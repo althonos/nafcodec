@@ -71,7 +71,6 @@ jobs:
     - name: Measure code coverage
       uses: actions-rs/tarpaulin@v0.1
       with:
-        version: '0.27.1'
         args: '--lib -v --out Xml --ciserver github-actions'
     - name: Upload coverage statistics
       uses: codecov/codecov-action@v2
