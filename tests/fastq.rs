@@ -10,11 +10,11 @@ fn decode() {
     let c = std::io::Cursor::new(ARCHIVE);
     let mut decoder = Decoder::new(c).unwrap();
 
-    assert_eq!(decoder.header.name_separator(), ' ');
-    assert_eq!(decoder.header.number_of_sequences(), 42);
-    assert_eq!(decoder.header.sequence_type(), SequenceType::Dna);
-    assert!(decoder.header.flags().has_quality());
-    assert!(decoder.header.flags().has_sequence());
+    assert_eq!(decoder.header().name_separator(), ' ');
+    assert_eq!(decoder.header().number_of_sequences(), 42);
+    assert_eq!(decoder.header().sequence_type(), SequenceType::Dna);
+    assert!(decoder.header().flags().has_quality());
+    assert!(decoder.header().flags().has_sequence());
 
     let r1 = decoder.next().unwrap().unwrap();
     assert_eq!(r1.id.unwrap(), "SRR1377138.1");

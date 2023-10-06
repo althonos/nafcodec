@@ -10,10 +10,10 @@ fn decode() {
     let c = std::io::Cursor::new(ARCHIVE);
     let mut decoder = Decoder::new(c).unwrap();
 
-    assert_eq!(decoder.header.name_separator(), ' ');
-    assert_eq!(decoder.header.number_of_sequences(), 30);
-    assert_eq!(decoder.header.line_length(), 80);
-    assert_eq!(decoder.header.sequence_type(), SequenceType::Dna);
+    assert_eq!(decoder.header().name_separator(), ' ');
+    assert_eq!(decoder.header().number_of_sequences(), 30);
+    assert_eq!(decoder.header().line_length(), 80);
+    assert_eq!(decoder.header().sequence_type(), SequenceType::Dna);
 
     let r1 = decoder.next().unwrap().unwrap();
     assert_eq!(r1.id.unwrap(), "NZ_AAEN01000029.1");

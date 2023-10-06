@@ -15,14 +15,16 @@ mod reader;
 
 use self::ioslice::IoSlice;
 use self::reader::*;
-use super::data::*;
-use super::error::Error;
+use crate::data::Header;
+use crate::data::Record;
+use crate::data::SequenceType;
+use crate::error::Error;
 
 type ZstdDecoder<'z, R> =
     BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<BufReader<R>>>>>;
 
 pub struct Decoder<'z, R: Read + Seek> {
-    pub header: Header,
+    header: Header,
 
     ids: Option<CStringReader<ZstdDecoder<'z, R>>>,
     com: Option<CStringReader<ZstdDecoder<'z, R>>>,
@@ -134,6 +136,10 @@ impl<R: Read + Seek> Decoder<'_, R> {
             // reader,
             header,
         })
+    }
+
+    pub fn header(&self) -> &Header {
+        &self.header
     }
 }
 

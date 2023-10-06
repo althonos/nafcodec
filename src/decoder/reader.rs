@@ -5,8 +5,6 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 
-use nom::IResult;
-
 use crate::data::SequenceType;
 
 // --- CStringReader -----------------------------------------------------------

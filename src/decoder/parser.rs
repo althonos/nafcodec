@@ -1,9 +1,9 @@
 use nom::IResult;
 
-use super::Flags;
-use super::FormatVersion;
-use super::Header;
-use super::SequenceType;
+use crate::data::Flags;
+use crate::data::FormatVersion;
+use crate::data::Header;
+use crate::data::SequenceType;
 
 fn is_printable(&byte: &u8) -> bool {
     byte >= 0x20 && byte <= 0x7E
