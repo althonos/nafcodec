@@ -9,15 +9,14 @@ use std::sync::RwLock;
 
 use nom::IResult;
 
-pub mod reader;
-pub mod parser;
-pub mod ioslice;
+mod reader;
+mod parser;
+mod ioslice;
 
 use super::data::*;
 use super::error::Error;
 use self::reader::*;
 use self::ioslice::IoSlice;
-
 
 type ZstdDecoder<'z, R> =
     BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<BufReader<R>>>>>;
@@ -61,9 +60,10 @@ impl<R: Read + Seek> Decoder<'_, R> {
         let mut reader_rc = Rc::new(RwLock::new(reader));
         macro_rules! setup_block {
             ($reader_rc:ident, $block:ident) => {
-                // decode size of the block
+                // create a local copy of the reader that we can access
                 let tee = $reader_rc.clone();
                 let mut handle = $reader_rc.write().unwrap();
+                // decode the block size
                 let buf = handle.fill_buf()?;
                 let (i, original_size) = self::parser::variable_u64(buf)?;
                 let (i, compressed_size) = self::parser::variable_u64(i)?;
@@ -71,7 +71,7 @@ impl<R: Read + Seek> Decoder<'_, R> {
                 handle.consume(consumed);
                 // setup the independent decoder for the block
                 let pos = handle.stream_position()?;
-                let mut tee_slice = IoSlice::new(tee, pos, pos + compressed_size);
+                let tee_slice = IoSlice::new(tee, pos, pos + compressed_size);
                 let mut decoder = zstd::stream::read::Decoder::new(tee_slice)?;
                 decoder.include_magicbytes(false)?;
                 $block = Some(BufReader::new(decoder));

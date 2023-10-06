@@ -121,10 +121,9 @@ pub fn title(i: &[u8]) -> IResult<&[u8], &str> {
 mod tests {
     use super::*;
 
-    const HEADER: [u8; 8] = [0x01, 0xF9, 0xEC, 0x01, 0x3E, 0x20, 0x3C, 0x20];
-
     #[test]
     fn header() {
+        const HEADER: [u8; 8] = [0x01, 0xF9, 0xEC, 0x01, 0x3E, 0x20, 0x3C, 0x20];
         let (i, h) = super::header(&HEADER[..]).unwrap();
         assert_eq!(h.name_separator(), ' ');
         assert_eq!(h.line_length(), 60);
