@@ -9,14 +9,14 @@ use std::sync::RwLock;
 
 use nom::IResult;
 
-mod reader;
-mod parser;
 mod ioslice;
+mod parser;
+mod reader;
 
+use self::ioslice::IoSlice;
+use self::reader::*;
 use super::data::*;
 use super::error::Error;
-use self::reader::*;
-use self::ioslice::IoSlice;
 
 type ZstdDecoder<'z, R> =
     BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<BufReader<R>>>>>;
@@ -135,8 +135,11 @@ impl<R: Read + Seek> Decoder<'_, R> {
             header,
         })
     }
+}
 
-    pub fn next(&mut self) -> Option<Result<Record, Error>> {
+impl<R: Read + Seek> Iterator for Decoder<'_, R> {
+    type Item = Result<Record, Error>;
+    fn next(&mut self) -> Option<Self::Item> {
         if self.n as u64 >= self.header.number_of_sequences() {
             return None;
         }
@@ -218,9 +221,7 @@ mod tests {
         let mut separator = reader.header.name_separator() as char;
         let mut line_length = reader.header.line_length() as usize;
 
-        while let Some(result) = reader.next() {
-            let record = result.unwrap();
-            let sequence = record.sequence.unwrap();
-        }
+        let records = reader.collect::<Result<Vec<_>, _>>().unwrap();
+        assert_eq!(records.len(), 32);
     }
 }

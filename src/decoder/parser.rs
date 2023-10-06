@@ -111,10 +111,8 @@ pub fn header(i: &[u8]) -> IResult<&[u8], Header> {
 
 pub fn title(i: &[u8]) -> IResult<&[u8], &str> {
     let (i, size) = self::variable_u64(i)?;
-    let (i, text) = nom::combinator::map_res(
-        nom::bytes::streaming::take(size),
-        std::str::from_utf8,
-    )(i)?;
+    let (i, text) =
+        nom::combinator::map_res(nom::bytes::streaming::take(size), std::str::from_utf8)(i)?;
     Ok((i, text))
 }
 

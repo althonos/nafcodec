@@ -1,3 +1,3 @@
 pub mod data;
-pub mod error;
 pub mod decoder;
+pub mod error;
