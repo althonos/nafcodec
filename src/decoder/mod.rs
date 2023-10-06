@@ -205,6 +205,10 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
             quality: None,
         }))
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (0, Some(self.header.number_of_sequences() as usize - self.n))
+    }
 }
 
 #[cfg(test)]
