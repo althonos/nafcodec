@@ -222,17 +222,13 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
 mod tests {
     use super::*;
 
-    const ARCHIVE: &[u8] = include_bytes!("../../411476.SAMN00627058.naf");
+    const ARCHIVE: &[u8] = include_bytes!("../../data/LuxC.naf");
 
     #[test]
     fn decoder() {
         use std::io::Write;
-
         let mut reader = Decoder::new(std::io::Cursor::new(ARCHIVE)).unwrap();
-        let mut separator = reader.header.name_separator() as char;
-        let mut line_length = reader.header.line_length() as usize;
-
         let records = reader.collect::<Result<Vec<_>, _>>().unwrap();
-        assert_eq!(records.len(), 32);
+        assert_eq!(records.len(), 12);
     }
 }
