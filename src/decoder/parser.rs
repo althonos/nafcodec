@@ -23,8 +23,8 @@ pub fn byte(i: &[u8]) -> IResult<&[u8], u8> {
 // }
 
 pub fn variable_u64(i: &[u8]) -> IResult<&[u8], u64> {
-    let (i, limbs) = nom::bytes::streaming::take_while(|byte: u8| (byte & 0x80) != 0)(i)?;
-    let (i, last) = self::byte(i)?;
+    let (i1, limbs) = nom::bytes::streaming::take_while(|byte: u8| (byte & 0x80) != 0)(i)?;
+    let (i2, last) = self::byte(i1)?;
 
     let mut num = 0;
     let mut basis = 1;
@@ -33,11 +33,16 @@ pub fn variable_u64(i: &[u8]) -> IResult<&[u8], u64> {
     basis *= 128;
 
     for &limb in limbs.iter().rev() {
-        num = num.checked_add(((limb & 0x7F) as u64) * basis).unwrap();
-        basis *= 128;
+        if let Some(x) = num.checked_add(((limb & 0x7F) as u64) * basis) {
+            num = x;
+            basis *= 128;
+        } else {
+            let error = nom::error::Error::new(i, nom::error::ErrorKind::TooLarge);
+            return Err(nom::Err::Failure(error));
+        }
     }
 
-    Ok((i, num))
+    Ok((i2, num))
 }
 
 pub fn format_descriptor(i: &[u8]) -> IResult<&[u8], &[u8]> {
