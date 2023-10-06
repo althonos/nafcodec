@@ -4,26 +4,26 @@ use std::io::BufReader;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
+use std::rc::Rc;
+use std::sync::RwLock;
 
 use nom::IResult;
-use slice::IoSlice;
 
 pub mod reader;
 pub mod parser;
-pub mod tee;
+pub mod ioslice;
 
 use super::data::*;
 use super::error::Error;
 use self::reader::*;
-use self::tee::Tee;
+use self::ioslice::IoSlice;
 
 
 type ZstdDecoder<'z, R> =
     BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<BufReader<R>>>>>;
 
-pub struct Decoder<'z, R: Read + Seek + Tee> {
+pub struct Decoder<'z, R: Read + Seek> {
     pub header: Header,
-    reader: BufReader<R>,
 
     ids: Option<CStringReader<ZstdDecoder<'z, R>>>,
     com: Option<CStringReader<ZstdDecoder<'z, R>>>,
@@ -34,7 +34,7 @@ pub struct Decoder<'z, R: Read + Seek + Tee> {
     n: usize,
 }
 
-impl<R: Read + Seek + Tee> Decoder<'_, R> {
+impl<R: Read + Seek> Decoder<'_, R> {
     pub fn new(r: R) -> Result<Self, Error> {
         let mut reader = BufReader::with_capacity(4096, r);
 
@@ -58,64 +58,66 @@ impl<R: Read + Seek + Tee> Decoder<'_, R> {
             reader.consume(consumed);
         }
 
+        let mut reader_rc = Rc::new(RwLock::new(reader));
         macro_rules! setup_block {
-            ($reader:ident, $block:ident) => {
+            ($reader_rc:ident, $block:ident) => {
                 // decode size of the block
-                let buf = $reader.fill_buf()?;
+                let tee = $reader_rc.clone();
+                let mut handle = $reader_rc.write().unwrap();
+                let buf = handle.fill_buf()?;
                 let (i, original_size) = self::parser::variable_u64(buf)?;
                 let (i, compressed_size) = self::parser::variable_u64(i)?;
                 let consumed = buf.len() - i.len();
-                $reader.consume(consumed);
+                handle.consume(consumed);
                 // setup the independent decoder for the block
-                let pos = $reader.stream_position()?;
-                let mut tee_reader = $reader.tee()?;
-                let mut tee_slice = IoSlice::new(tee_reader, pos, pos + compressed_size)?;
+                let pos = handle.stream_position()?;
+                let mut tee_slice = IoSlice::new(tee, pos, pos + compressed_size);
                 let mut decoder = zstd::stream::read::Decoder::new(tee_slice)?;
                 decoder.include_magicbytes(false)?;
                 $block = Some(BufReader::new(decoder));
                 // skip the block with the main reader
-                $reader.seek(SeekFrom::Current(compressed_size as i64))?;
+                handle.seek(SeekFrom::Current(compressed_size as i64))?;
             };
         }
 
         let ids_block;
         if header.flags().has_ids() {
-            setup_block!(reader, ids_block);
+            setup_block!(reader_rc, ids_block);
         } else {
             ids_block = None;
         }
 
         let comments_block;
         if header.flags().has_comments() {
-            setup_block!(reader, comments_block);
+            setup_block!(reader_rc, comments_block);
         } else {
             comments_block = None;
         }
 
         let lengths_block;
         if header.flags().has_lengths() {
-            setup_block!(reader, lengths_block);
+            setup_block!(reader_rc, lengths_block);
         } else {
             lengths_block = None;
         }
 
         let mask_block;
         if header.flags().has_mask() {
-            setup_block!(reader, mask_block);
+            setup_block!(reader_rc, mask_block);
         } else {
             mask_block = None;
         }
 
         let sequence_block;
         if header.flags().has_sequence() {
-            setup_block!(reader, sequence_block);
+            setup_block!(reader_rc, sequence_block);
         } else {
             sequence_block = None;
         }
 
         let quality_block;
         if header.flags().has_quality() {
-            setup_block!(reader, quality_block);
+            setup_block!(reader_rc, quality_block);
         } else {
             quality_block = None;
         }
@@ -129,7 +131,7 @@ impl<R: Read + Seek + Tee> Decoder<'_, R> {
 
             n: 0,
 
-            reader,
+            // reader,
             header,
         })
     }

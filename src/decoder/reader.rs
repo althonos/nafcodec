@@ -6,7 +6,6 @@ use std::io::Seek;
 use std::io::SeekFrom;
 
 use nom::IResult;
-use slice::IoSlice;
 
 use crate::data::SequenceType;
 
