@@ -28,7 +28,7 @@ impl<R: Read + Seek> Read for IoSlice<R> {
         let mut reader = self.reader.write().unwrap();
         reader.seek(SeekFrom::Start(self.pos))?;
 
-        let mut remaining = (self.end - self.pos) as usize;
+        let remaining = (self.end - self.pos) as usize;
         if buffer.len() > remaining {
             buffer = &mut buffer[..remaining];
         }

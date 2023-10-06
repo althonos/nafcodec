@@ -1,4 +1,4 @@
-# `naf.rs` [![Stars](https://img.shields.io/github/stars/althonos/naf-rs.svg?style=social&maxAge=3600&label=Star)](https://github.com/althonos/naf-rs/stargazers)
+# 📦🧬 `naf.rs` [![Stars](https://img.shields.io/github/stars/althonos/naf-rs.svg?style=social&maxAge=3600&label=Star)](https://github.com/althonos/naf-rs/stargazers)
 
 *Rust implementation of the [Nucleotide Archive Format (NAF)](https://github.com/KirillKryukov/naf)*.
 

@@ -1,4 +1,3 @@
-use std::ffi::CString;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
@@ -6,8 +5,6 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::rc::Rc;
 use std::sync::RwLock;
-
-use nom::IResult;
 
 mod ioslice;
 mod parser;
@@ -54,12 +51,12 @@ impl<R: Read + Seek> Decoder<'_, R> {
 
         if header.flags().has_title() {
             let buf = reader.buffer();
-            let (i, title) = self::parser::title(buf)?;
+            let (i, _title) = self::parser::title(buf)?;
             let consumed = buf.len() - i.len();
             reader.consume(consumed);
         }
 
-        let mut reader_rc = Rc::new(RwLock::new(reader));
+        let reader_rc = Rc::new(RwLock::new(reader));
         macro_rules! setup_block {
             ($reader_rc:ident, $block:ident) => {
                 // create a local copy of the reader that we can access
@@ -67,7 +64,7 @@ impl<R: Read + Seek> Decoder<'_, R> {
                 let mut handle = $reader_rc.write().unwrap();
                 // decode the block size
                 let buf = handle.fill_buf()?;
-                let (i, original_size) = self::parser::variable_u64(buf)?;
+                let (i, _original_size) = self::parser::variable_u64(buf)?;
                 let (i, compressed_size) = self::parser::variable_u64(i)?;
                 let consumed = buf.len() - i.len();
                 handle.consume(consumed);
@@ -226,8 +223,7 @@ mod tests {
 
     #[test]
     fn decoder() {
-        use std::io::Write;
-        let mut reader = Decoder::new(std::io::Cursor::new(ARCHIVE)).unwrap();
+        let reader = Decoder::new(std::io::Cursor::new(ARCHIVE)).unwrap();
         let records = reader.collect::<Result<Vec<_>, _>>().unwrap();
         assert_eq!(records.len(), 12);
     }

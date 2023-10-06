@@ -6,7 +6,7 @@ use crate::data::Header;
 use crate::data::SequenceType;
 
 fn is_printable(&byte: &u8) -> bool {
-    byte >= 0x20 && byte <= 0x7E
+    (0x20..=0x7E).contains(&byte)
 }
 
 pub fn byte(i: &[u8]) -> IResult<&[u8], u8> {
@@ -117,7 +117,6 @@ pub fn title(i: &[u8]) -> IResult<&[u8], &str> {
 }
 
 mod tests {
-    use super::*;
 
     #[test]
     fn header() {
