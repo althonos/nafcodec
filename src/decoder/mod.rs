@@ -28,7 +28,7 @@ pub struct Decoder<'z, R: Read + Seek> {
     com: Option<CStringReader<ZstdDecoder<'z, R>>>,
     len: Option<LengthReader<ZstdDecoder<'z, R>>>,
     seq: Option<SequenceReader<ZstdDecoder<'z, R>>>,
-    qual: Option<TextReader<ZstdDecoder<'z, R>>>,
+    qual: Option<SequenceReader<ZstdDecoder<'z, R>>>,
 
     n: usize,
 }
@@ -127,7 +127,7 @@ impl<R: Read + Seek> Decoder<'_, R> {
             com: comments_block.map(CStringReader::new),
             len: lengths_block.map(LengthReader::new),
             seq: sequence_block.map(|x| SequenceReader::new(x, header.sequence_type())),
-            qual: quality_block.map(TextReader::new),
+            qual: quality_block.map(|x| SequenceReader::new(x, SequenceType::Text)),
 
             n: 0,
 
@@ -174,8 +174,8 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
             Some(Err(e)) => return Some(Err(e)),
         };
 
-        let sequence = if let Some(l) = length {
-            match self
+        let (sequence, quality) = if let Some(l) = length {
+            let sequence = match self
                 .seq
                 .as_mut()
                 .map(|reader| reader.next(l).map_err(Error::from))
@@ -183,26 +183,27 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
                 None => None,
                 Some(Ok(seq)) => Some(seq),
                 Some(Err(e)) => return Some(Err(e)),
-            }
+            };
+            let quality = match self
+                .qual
+                .as_mut()
+                .map(|reader| reader.next(l).map_err(Error::from))
+            {
+                None => None,
+                Some(Ok(qual)) => Some(qual),
+                Some(Err(e)) => return Some(Err(e)),
+            };
+            (sequence, quality)
         } else {
-            None
+            (None, None)
         };
-        // let com = match self.com.as_mut()
-        //     .map(|block| {
-        //         let mut buffer = Vec::new();
-        //         block.read_until(0, &mut buffer).map_err(Error::from)?;
-        //         String::from_utf8(buffer).map_err(Error::from)
-        //     })
-        // {
-
-        // };
 
         self.n += 1;
         Some(Ok(Record {
             id,
             comment,
             sequence,
-            quality: None,
+            quality,
         }))
     }
 

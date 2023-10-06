@@ -57,25 +57,6 @@ impl<R: BufRead> LengthReader<R> {
     }
 }
 
-// --- TextReader --------------------------------------------------------------
-
-#[derive(Debug)]
-pub struct TextReader<R: BufRead> {
-    reader: R,
-}
-
-impl<R: BufRead> TextReader<R> {
-    pub fn new(reader: R) -> Self {
-        Self { reader }
-    }
-
-    pub fn next(&mut self, length: u64) -> Result<Vec<u8>, std::io::Error> {
-        let mut buffer = vec![0; length as usize];
-        self.reader.read_exact(&mut buffer)?;
-        Ok(buffer)
-    }
-}
-
 // --- SequenceReader ----------------------------------------------------------
 
 #[derive(Debug)]
@@ -114,15 +95,17 @@ impl<R: BufRead> SequenceReader<R> {
 
     fn read_text(&mut self, length: u64, sequence: &mut Vec<u8>) -> Result<(), std::io::Error> {
         let buffer = self.reader.fill_buf()?;
-        
         let n_to_copy = buffer.len().min(length as usize - sequence.len());
         sequence.extend_from_slice(&buffer[..n_to_copy]);
         self.reader.consume(n_to_copy);
-
         Ok(())
     }
 
-    fn read_nucleotide<const T: u8>(&mut self, length: u64, sequence: &mut Vec<u8>) -> Result<(), std::io::Error> {
+    fn read_nucleotide<const T: u8>(
+        &mut self,
+        length: u64,
+        sequence: &mut Vec<u8>,
+    ) -> Result<(), std::io::Error> {
         let mut i = 0;
         let buffer = self.reader.fill_buf()?;
 
