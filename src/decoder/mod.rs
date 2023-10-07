@@ -19,11 +19,19 @@ use crate::data::Record;
 use crate::data::SequenceType;
 use crate::error::Error;
 
+/// The wrapper used to decode Zstandard stream.
 type ZstdDecoder<'z, R> =
     BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<BufReader<R>>>>>;
 
+/// A decoder for Nucleotide Archive Format files.
+///
+/// The internal reader is shared and accessed non-sequentially to read the
+/// different block components of the archive. This means that the internal
+/// file heavily make use of `seek`; make sure that the actual object has a
+/// fast seeking implementation.
 pub struct Decoder<'z, R: Read + Seek> {
     header: Header,
+
     ids: Option<CStringReader<ZstdDecoder<'z, R>>>,
     com: Option<CStringReader<ZstdDecoder<'z, R>>>,
     len: Option<LengthReader<ZstdDecoder<'z, R>>>,
@@ -210,7 +218,7 @@ impl<R: Read + Seek> Decoder<'_, R> {
                         }
                     }
                 }
-                mask = match self.mask.as_mut().unwrap().next() {
+                mask = match mask_reader.next() {
                     Some(Ok(x)) => x,
                     Some(Err(e)) => return Err(Error::Io(e)),
                     None => {
