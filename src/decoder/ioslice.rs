@@ -2,8 +2,9 @@ use std::io::Error as IoError;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::rc::Rc;
 use std::sync::RwLock;
+
+use super::Rc;
 
 pub struct IoSlice<R: Read + Seek> {
     reader: Rc<RwLock<R>>,

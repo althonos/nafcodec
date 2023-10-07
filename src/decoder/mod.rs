@@ -6,7 +6,6 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::iter::FusedIterator;
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::RwLock;
 
 mod ioslice;
@@ -20,6 +19,12 @@ use crate::data::MaskUnit;
 use crate::data::Record;
 use crate::data::SequenceType;
 use crate::error::Error;
+
+/// The reference counter type used to share the stream.
+#[cfg(feature = "arc")]
+type Rc<T> = std::sync::Arc<T>;
+#[cfg(not(feature = "arc"))]
+type Rc<T> = std::rc::Rc<T>;
 
 /// The wrapper used to decode Zstandard stream.
 type ZstdDecoder<'z, R> = BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<R>>>>;
@@ -161,8 +166,7 @@ impl DecoderBuilder {
     ///
     /// Note that `Decoder` uses a lot of buffered I/O, and that more than
     /// one buffer will be created. Nevertheless, a higher value will reduce
-    /// the necessity to [`seek`] the reader while reading the different
-    /// blocks.
+    /// the necessity to seek the reader while reading the different blocks.
     pub fn buffer_size(&mut self, buffer_size: usize) -> &mut Self {
         self.buffer_size = buffer_size;
         self
