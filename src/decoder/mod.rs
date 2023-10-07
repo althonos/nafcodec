@@ -22,13 +22,11 @@ type ZstdDecoder<'z, R> =
 
 pub struct Decoder<'z, R: Read + Seek> {
     header: Header,
-
     ids: Option<CStringReader<ZstdDecoder<'z, R>>>,
     com: Option<CStringReader<ZstdDecoder<'z, R>>>,
     len: Option<LengthReader<ZstdDecoder<'z, R>>>,
     seq: Option<SequenceReader<ZstdDecoder<'z, R>>>,
     qual: Option<SequenceReader<ZstdDecoder<'z, R>>>,
-
     n: usize,
 }
 
@@ -207,11 +205,13 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
             comment,
             sequence,
             quality,
+            length,
         }))
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.header.number_of_sequences() as usize - self.n))
+        let remaining = self.header.number_of_sequences() as usize - self.n;
+        (0, Some(remaining))
     }
 }
 

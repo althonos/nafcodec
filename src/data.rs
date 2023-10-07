@@ -4,6 +4,7 @@ pub struct Record {
     pub comment: Option<String>,
     pub sequence: Option<String>,
     pub quality: Option<String>,
+    pub length: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
