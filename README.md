@@ -42,8 +42,9 @@ The following features are planned:
 
 ### 🔌 Usage
 
-Use `naf::Decoder` to iterate over the contents of a Nucleotide Archive Format,
-reading from any `Read` + `Seek` implementor:
+Use `nafcodec::Decoder` to iterate over the contents of a Nucleotide Archive Format,
+reading from any [`BufRead`](https://doc.rust-lang.org/nightly/std/io/trait.BufRead.html) + 
+[`Seek`](https://doc.rust-lang.org/nightly/std/io/trait.Seek.html) implementor:
 
 ```rust
 let mut decoder = nafcodec::Decoder::from_path("data/LuxC.naf")

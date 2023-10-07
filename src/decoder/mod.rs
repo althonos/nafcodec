@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::iter::FusedIterator;
@@ -23,8 +22,7 @@ use crate::data::SequenceType;
 use crate::error::Error;
 
 /// The wrapper used to decode Zstandard stream.
-type ZstdDecoder<'z, R> =
-    BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<BufReader<R>>>>>;
+type ZstdDecoder<'z, R> = BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<R>>>>;
 
 /// A builder to configure and initialize a [`Decoder`](./struct.Decoder.html).
 ///
@@ -60,21 +58,25 @@ impl DecoderBuilder {
     }
 
     /// Build a decoder with this configuration that reads data from the given file path.
-    pub fn from_path<'z, P: AsRef<Path>>(&self, path: P) -> Result<Decoder<'z, File>, Error> {
+    pub fn from_path<'z, P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> Result<Decoder<'z, BufReader<File>>, Error> {
         File::open(path.as_ref())
             .map_err(Error::from)
-            .and_then(|f| self.from_reader(f))
+            .and_then(|f| self.from_reader(std::io::BufReader::new(f)))
     }
 
     /// Build a decoder with this configuration that reads data from `reader`.
-    pub fn from_reader<'z, R: Read + Seek>(&self, reader: R) -> Result<Decoder<'z, R>, Error> {
-        let mut r = BufReader::with_capacity(self.buffer_size, reader);
-
-        let buffer = r.fill_buf()?;
+    pub fn from_reader<'z, R: BufRead + Seek>(
+        &self,
+        mut reader: R,
+    ) -> Result<Decoder<'z, R>, Error> {
+        let buffer = reader.fill_buf()?;
         let header = match self::parser::header(buffer) {
             Ok((i, header)) => {
                 let consumed = buffer.len() - i.len();
-                r.consume(consumed);
+                reader.consume(consumed);
                 header
             }
             Err(nom::Err::Incomplete(_)) => {
@@ -89,13 +91,13 @@ impl DecoderBuilder {
         };
 
         if header.flags().has_title() {
-            let buf = r.buffer();
+            let buf = reader.fill_buf()?;
             let (i, _title) = self::parser::title(buf)?;
             let consumed = buf.len() - i.len();
-            r.consume(consumed);
+            reader.consume(consumed);
         }
 
-        let rc = Rc::new(RwLock::new(r));
+        let rc = Rc::new(RwLock::new(reader));
         macro_rules! setup_block {
             ($flag:expr, $use_block:expr, $rc:ident, $block:ident) => {
                 let _length: u64;
@@ -197,10 +199,10 @@ impl Default for DecoderBuilder {
 /// different block components of the archive. This means that the internal
 /// file heavily make use of [`seek`](https://doc.rust-lang.org/std/io/trait.Seek.html#tymethod.seek),
 /// so make sure that the actual type has a fast seeking implementation.
-pub struct Decoder<'z, R: Read + Seek> {
+pub struct Decoder<'z, R: BufRead + Seek> {
     header: Header,
 
-    reader: Rc<RwLock<BufReader<R>>>,
+    reader: Rc<RwLock<R>>,
 
     ids: Option<CStringReader<ZstdDecoder<'z, R>>>,
     com: Option<CStringReader<ZstdDecoder<'z, R>>>,
@@ -213,7 +215,7 @@ pub struct Decoder<'z, R: Read + Seek> {
     unit: MaskUnit,
 }
 
-impl Decoder<'_, File> {
+impl Decoder<'_, BufReader<File>> {
     /// Create a new decoder from the given path.
     ///
     /// This constructor is a shortcut for `DecoderBuilder::new().from_path(path)`.
@@ -223,7 +225,7 @@ impl Decoder<'_, File> {
     }
 }
 
-impl<R: Read + Seek> Decoder<'_, R> {
+impl<R: BufRead + Seek> Decoder<'_, R> {
     /// Create a new decoder from the given reader.
     ///
     /// This constructor is a shortcut for `DecoderBuilder::new().from_reader(reader)`.
@@ -255,7 +257,6 @@ impl<R: Read + Seek> Decoder<'_, R> {
             .expect("reference count should be 1 after decoder is dropped")
             .into_inner()
             .expect("lock shouldn't be poisoned")
-            .into_inner()
     }
 
     /// Attempt to read the next record from the archive.
@@ -340,7 +341,7 @@ impl<R: Read + Seek> Decoder<'_, R> {
     }
 }
 
-impl<R: Read + Seek> Iterator for Decoder<'_, R> {
+impl<R: BufRead + Seek> Iterator for Decoder<'_, R> {
     type Item = Result<Record, Error>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.n as u64 >= self.header.number_of_sequences() {
@@ -355,7 +356,7 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
     }
 }
 
-impl<R: Read + Seek> FusedIterator for Decoder<'_, R> {}
+impl<R: BufRead + Seek> FusedIterator for Decoder<'_, R> {}
 
 #[cfg(test)]
 mod tests {
