@@ -41,8 +41,8 @@ fn mask() {
     let mut decoder = Decoder::new(c).unwrap();
 
     assert_eq!(decoder.header().name_separator(), ' ');
-    assert_eq!(decoder.header().number_of_sequences(), 30);
-    assert_eq!(decoder.header().line_length(), 80);
+    assert_eq!(decoder.header().number_of_sequences(), 1);
+    assert_eq!(decoder.header().line_length(), 50);
     assert_eq!(decoder.header().sequence_type(), SequenceType::Dna);
 
     let r1 = decoder.next().unwrap().unwrap();

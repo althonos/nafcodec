@@ -144,6 +144,38 @@ impl<R: Read + Seek> Decoder<'_, R> {
     pub fn header(&self) -> &Header {
         &self.header
     }
+
+    fn next_record(&mut self) -> Result<Record, Error> {
+        let id = self
+            .ids
+            .as_mut()
+            .map(|r| r.next())
+            .transpose()?
+            .map(|id| id.into_string().expect("TODO"));
+        let comment = self
+            .com
+            .as_mut()
+            .map(|r| r.next())
+            .transpose()?
+            .map(|com| com.into_string().expect("TODO"));
+        let length = self.len.as_mut().map(|r| r.next()).transpose()?;
+
+        let mut sequence = None;
+        let mut quality = None;
+        if let Some(l) = length {
+            sequence = self.seq.as_mut().map(|r| r.next(l)).transpose()?;
+            quality = self.qual.as_mut().map(|r| r.next(l)).transpose()?;
+        }
+
+        self.n += 1;
+        Ok(Record {
+            id,
+            comment,
+            sequence,
+            quality,
+            length,
+        })
+    }
 }
 
 impl<R: Read + Seek> Iterator for Decoder<'_, R> {
@@ -152,80 +184,7 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
         if self.n as u64 >= self.header.number_of_sequences() {
             return None;
         }
-
-        let id = match self
-            .ids
-            .as_mut()
-            .map(|reader| reader.next().map_err(Error::from))
-        {
-            None => None,
-            Some(Ok(id)) => Some(id.into_string().expect("TODO")),
-            Some(Err(e)) => return Some(Err(e)),
-        };
-
-        let comment = match self
-            .com
-            .as_mut()
-            .map(|reader| reader.next().map_err(Error::from))
-        {
-            None => None,
-            Some(Ok(com)) => Some(com.into_string().expect("TODO")),
-            Some(Err(e)) => return Some(Err(e)),
-        };
-
-        let length = match self
-            .len
-            .as_mut()
-            .map(|reader| reader.next().map_err(Error::from))
-        {
-            None => None,
-            Some(Ok(len)) => Some(len),
-            Some(Err(e)) => return Some(Err(e)),
-        };
-
-        let (sequence, quality) = if let Some(l) = length {
-            let sequence = match self
-                .seq
-                .as_mut()
-                .map(|reader| reader.next(l).map_err(Error::from))
-            {
-                None => None,
-                Some(Ok(seq)) => Some(seq),
-                Some(Err(e)) => return Some(Err(e)),
-            };
-            let quality = match self
-                .qual
-                .as_mut()
-                .map(|reader| reader.next(l).map_err(Error::from))
-            {
-                None => None,
-                Some(Ok(qual)) => Some(qual),
-                Some(Err(e)) => return Some(Err(e)),
-            };
-
-            // let mask = match self
-            //     .mask
-            //     .as_mut()
-            //     .map(|reader| reader.next().map_err(Error::from))
-            // {
-            //     None => None,
-            //     Some(Ok(mask)) => Some(mask),
-            //     Some(Err(e)) => return Some(Err(e)),
-            // };
-
-            (sequence, quality)
-        } else {
-            (None, None)
-        };
-
-        self.n += 1;
-        Some(Ok(Record {
-            id,
-            comment,
-            sequence,
-            quality,
-            length,
-        }))
+        Some(self.next_record())
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
