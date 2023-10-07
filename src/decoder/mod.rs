@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
@@ -32,6 +33,8 @@ type ZstdDecoder<'z, R> =
 pub struct Decoder<'z, R: Read + Seek> {
     header: Header,
 
+    reader: Rc<RwLock<BufReader<R>>>,
+
     ids: Option<CStringReader<ZstdDecoder<'z, R>>>,
     com: Option<CStringReader<ZstdDecoder<'z, R>>>,
     len: Option<LengthReader<ZstdDecoder<'z, R>>>,
@@ -44,6 +47,7 @@ pub struct Decoder<'z, R: Read + Seek> {
 }
 
 impl<R: Read + Seek> Decoder<'_, R> {
+    /// Create a new decoder from the given reader.
     pub fn new(r: R) -> Result<Self, Error> {
         let mut reader = BufReader::with_capacity(4096, r);
 
@@ -54,7 +58,12 @@ impl<R: Read + Seek> Decoder<'_, R> {
                 reader.consume(consumed);
                 header
             }
-            Err(nom::Err::Incomplete(_)) => unreachable!(),
+            Err(nom::Err::Incomplete(_)) => {
+                return Err(Error::from(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "failed to read header",
+                )));
+            }
             Err(nom::Err::Error(e) | nom::Err::Failure(e)) => {
                 return Err(Error::from(e));
             }
@@ -119,16 +128,41 @@ impl<R: Read + Seek> Decoder<'_, R> {
 
             n: 0,
 
-            // reader,
             header,
+            reader: reader_rc,
             unit: MaskUnit::Unmasked(0),
         })
     }
 
+    /// Get the header extracted from the archive.
+    ///
+    /// The NAF header contains useful metadata which are decoded before
+    /// starting to decode the rest of the archive, such as the total number
+    /// of sequences (useful for building a progress bar) or the line length
+    /// (useful for writing the decoded sequences in FASTA format).
     pub fn header(&self) -> &Header {
         &self.header
     }
 
+    /// Extract the internal reader.
+    ///
+    /// Note that the internal reader may have been advanced even if no
+    /// records were obtained from the decoder yet, since at least the header
+    /// needs to be decoded to obtain a working decoder.
+    pub fn into_inner(self) -> R {
+        let reader = self.reader.clone();
+        drop(self);
+        Rc::into_inner(reader)
+            .expect("reference count should be 1 after decoder is dropped")
+            .into_inner()
+            .expect("lock shouldn't be poisoned")
+            .into_inner()
+    }
+
+    /// Attempt to read the next record from the archive.
+    ///
+    /// This function expects that a record is available; use `Decoder::next`
+    /// to check beforehand whether all sequences were read from the archive.
     fn next_record(&mut self) -> Result<Record, Error> {
         let id = self
             .ids
@@ -164,11 +198,12 @@ impl<R: Read + Seek> Decoder<'_, R> {
         })
     }
 
+    /// Attempt to mask some regions of the given sequence.
     fn mask_sequence(&mut self, sequence: &mut String) -> Result<(), Error> {
         let mut mask = self.unit.clone();
         let mut seq = sequence.as_mut_str();
 
-        if let Some(mut mask_reader) = self.mask.as_mut() {
+        if let Some(mask_reader) = self.mask.as_mut() {
             loop {
                 match mask {
                     MaskUnit::Masked(n) => {
@@ -229,6 +264,15 @@ mod tests {
     use crate::data::MaskUnit;
 
     const ARCHIVE: &[u8] = include_bytes!("../../data/LuxC.naf");
+
+    #[test]
+    fn error_empty() {
+        match Decoder::new(std::io::Cursor::new(b"")) {
+            Ok(decoder) => panic!("unexpected success"),
+            Err(Error::Io(e)) => assert!(matches!(e.kind(), std::io::ErrorKind::UnexpectedEof)),
+            Err(e) => panic!("unexpected error: {:?}", e),
+        }
+    }
 
     #[test]
     fn decoder() {
