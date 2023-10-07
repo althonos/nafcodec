@@ -2,12 +2,14 @@ extern crate naf;
 
 use naf::data::SequenceType;
 use naf::decoder::Decoder;
+use naf::decoder::DecoderBuilder;
+
+const GENOME: &[u8] = include_bytes!("../data/NZ_AAEN01000029.naf");
+const MASKED: &[u8] = include_bytes!("../data/masked.naf");
 
 #[test]
 fn decode() {
-    const ARCHIVE: &[u8] = include_bytes!("../data/NZ_AAEN01000029.naf");
-
-    let c = std::io::Cursor::new(ARCHIVE);
+    let c = std::io::Cursor::new(GENOME);
     let mut decoder = Decoder::new(c).unwrap();
 
     assert_eq!(decoder.header().name_separator(), ' ');
@@ -35,9 +37,7 @@ fn decode() {
 
 #[test]
 fn mask() {
-    const ARCHIVE: &[u8] = include_bytes!("../data/masked.naf");
-
-    let c = std::io::Cursor::new(ARCHIVE);
+    let c = std::io::Cursor::new(MASKED);
     let mut decoder = Decoder::new(c).unwrap();
 
     assert_eq!(decoder.header().name_separator(), ' ');
@@ -60,6 +60,29 @@ fn mask() {
     assert!(seq[525..621].chars().all(|x| x.is_lowercase()));
     assert!(seq[621..720].chars().all(|x| x.is_uppercase()));
     assert!(seq[720..733].chars().all(|x| x.is_lowercase()));
+
+    assert!(decoder.next().is_none());
+}
+
+#[test]
+fn force_nomask() {
+    let c = std::io::Cursor::new(MASKED);
+    let mut decoder = DecoderBuilder::new().mask(false).from_reader(c).unwrap();
+
+    assert_eq!(decoder.header().name_separator(), ' ');
+    assert_eq!(decoder.header().number_of_sequences(), 2);
+    assert_eq!(decoder.header().line_length(), 50);
+    assert_eq!(decoder.header().sequence_type(), SequenceType::Dna);
+
+    let r1 = decoder.next().unwrap().unwrap();
+    assert_eq!(r1.id.unwrap(), "test1");
+    let seq = r1.sequence.unwrap();
+    assert!(seq[..].chars().all(|x| x.is_uppercase()));
+
+    let r2 = decoder.next().unwrap().unwrap();
+    assert_eq!(r2.id.unwrap(), "test2");
+    let seq = r2.sequence.unwrap();
+    assert!(seq[..].chars().all(|x| x.is_uppercase()));
 
     assert!(decoder.next().is_none());
 }

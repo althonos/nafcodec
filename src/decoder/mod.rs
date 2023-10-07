@@ -32,6 +32,7 @@ pub struct DecoderBuilder {
     buffer_size: usize,
     quality: bool,
     sequence: bool,
+    mask: bool,
 }
 
 impl DecoderBuilder {
@@ -40,6 +41,7 @@ impl DecoderBuilder {
             buffer_size: 4096,
             quality: true,
             sequence: true,
+            mask: true,
         }
     }
 
@@ -79,18 +81,18 @@ impl DecoderBuilder {
             r.consume(consumed);
         }
 
-        let reader_rc = Rc::new(RwLock::new(r));
+        let rc = Rc::new(RwLock::new(r));
         macro_rules! setup_block {
-            ($flag:expr, $use_block:expr, $reader_rc:ident, $block:ident) => {
+            ($flag:expr, $use_block:expr, $rc:ident, $block:ident) => {
                 let _length: u64;
-                setup_block!($flag, $use_block, $reader_rc, $block, _length);
+                setup_block!($flag, $use_block, $rc, $block, _length);
             };
-            ($flag:expr, $use_block:expr, $reader_rc:ident, $block:ident, $block_length:ident) => {
+            ($flag:expr, $use_block:expr, $rc:ident, $block:ident, $block_length:ident) => {
                 let $block;
                 if $flag {
                     // create a local copy of the reader that we can access
-                    let tee = $reader_rc.clone();
-                    let mut handle = $reader_rc.write().unwrap();
+                    let tee = $rc.clone();
+                    let mut handle = $rc.write().unwrap();
                     // decode the block size
                     let buf = handle.fill_buf()?;
                     let (i, original_size) = self::parser::variable_u64(buf)?;
@@ -118,18 +120,12 @@ impl DecoderBuilder {
 
         let flags = header.flags();
         let mut seqlen = 0;
-        setup_block!(flags.has_ids(), true, reader_rc, ids_block);
-        setup_block!(flags.has_comments(), true, reader_rc, com_block);
-        setup_block!(flags.has_lengths(), true, reader_rc, len_block);
-        setup_block!(flags.has_mask(), true, reader_rc, mask_block);
-        setup_block!(
-            flags.has_sequence(),
-            self.sequence,
-            reader_rc,
-            seq_block,
-            seqlen
-        );
-        setup_block!(flags.has_quality(), self.quality, reader_rc, quality_block);
+        setup_block!(flags.has_ids(), true, rc, ids_block);
+        setup_block!(flags.has_comments(), true, rc, com_block);
+        setup_block!(flags.has_lengths(), true, rc, len_block);
+        setup_block!(flags.has_mask(), self.mask, rc, mask_block);
+        setup_block!(flags.has_sequence(), self.sequence, rc, seq_block, seqlen);
+        setup_block!(flags.has_quality(), self.quality, rc, quality_block);
 
         Ok(Decoder {
             ids: ids_block.map(CStringReader::new),
@@ -138,11 +134,9 @@ impl DecoderBuilder {
             seq: seq_block.map(|x| SequenceReader::new(x, header.sequence_type())),
             qual: quality_block.map(|x| SequenceReader::new(x, SequenceType::Text)),
             mask: mask_block.map(|x| MaskReader::new(x, seqlen)),
-
             n: 0,
-
             header,
-            reader: reader_rc,
+            reader: rc,
             unit: MaskUnit::Unmasked(0),
         })
     }
@@ -167,6 +161,12 @@ impl DecoderBuilder {
     /// Whether or not to decode the quality string if available.
     pub fn quality(&mut self, quality: bool) -> &mut Self {
         self.quality = quality;
+        self
+    }
+
+    /// Whether or not to perform region masking in the output sequence.
+    pub fn mask(&mut self, mask: bool) -> &mut Self {
+        self.mask = mask;
         self
     }
 }
@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn error_empty() {
         match Decoder::new(std::io::Cursor::new(b"")) {
-            Ok(decoder) => panic!("unexpected success"),
+            Ok(_decoder) => panic!("unexpected success"),
             Err(Error::Io(e)) => assert!(matches!(e.kind(), std::io::ErrorKind::UnexpectedEof)),
             Err(e) => panic!("unexpected error: {:?}", e),
         }
