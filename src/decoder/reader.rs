@@ -102,24 +102,28 @@ impl<R: BufRead> SequenceReader<R> {
         length: u64,
         sequence: &mut Vec<u8>,
     ) -> Result<(), std::io::Error> {
-        let mut i = 0;
         let buffer = self.reader.fill_buf()?;
 
-        while i < buffer.len() && (sequence.len() as u64) < length {
-            let c1 = Self::decode::<T>(buffer[i] & 0x0F);
+        let rem = length as usize - sequence.len();
+        let n = buffer.len().min(rem / 2);
+
+        for x in buffer.iter().take(n) {
+            let c1 = Self::decode::<T>(x & 0x0F);
             sequence.push(c1);
-
-            let c2 = Self::decode::<T>(buffer[i] >> 4);
-            if sequence.len() as u64 == length {
-                self.cache = Some(c2);
-            } else {
-                sequence.push(c2);
-            }
-
-            i += 1;
+            let c2 = Self::decode::<T>(x >> 4);
+            sequence.push(c2);
         }
 
-        self.reader.consume(i);
+        if n < buffer.len() && sequence.len() == length as usize - 1 {
+            let c1 = Self::decode::<T>(buffer[n] & 0x0F);
+            sequence.push(c1);
+            let c2 = Self::decode::<T>(buffer[n] >> 4);
+            self.cache = Some(c2);
+            self.reader.consume(n + 1);
+        } else {
+            self.reader.consume(n);
+        }
+
         Ok(())
     }
 
