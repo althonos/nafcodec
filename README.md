@@ -15,15 +15,15 @@
 
 ## 🗺️ Overview
 
-[Nucleotide Archive Format](https://github.com/KirillKryukov/naf) is a file 
-format proposed in Kryukov *et al.*[\[1\]](#ref1) in 2019 for storing 
-compressed nucleotide or protein sequences combining 4-bit encoding and 
+[Nucleotide Archive Format](https://github.com/KirillKryukov/naf) is a file
+format proposed in Kryukov *et al.*[\[1\]](#ref1) in 2019 for storing
+compressed nucleotide or protein sequences combining 4-bit encoding and
 [Zstandard](https://github.com/facebook/zstd) compression. NAF files can
-be compressed and decompressed using the 
+be compressed and decompressed using the
 [original C implementation](https://kirill-kryukov.com/study/naf).
 
-This crate provides a Rust implementation of a NAF decoder, from scratch, 
-using `nom` for parsing the binary format, and `zstd-sys` for handling 
+This crate provides a Rust implementation of a NAF decoder, from scratch,
+using `nom` for parsing the binary format, and `zstd-sys` for handling
 Zstandard decompression. It provides a complete API that allows interacting
 with NAF files in Rust code.
 
@@ -32,7 +32,7 @@ with NAF files in Rust code.
 - **streaming decoder**: The decoder is implemented using different readers
   each accessing a region of the compressed file, allowing to stream records
   without having to decode full blocks.
-- **optional decoding**: Allow the decoder to skip the decoding of certains 
+- **optional decoding**: Allow the decoder to skip the decoding of certains
   fields, such as ignoring quality strings when they are not needed.
 
 The following features are planned:
@@ -43,7 +43,7 @@ The following features are planned:
 ### 🔌 Usage
 
 Use `nafcodec::Decoder` to iterate over the contents of a Nucleotide Archive Format,
-reading from any [`BufRead`](https://doc.rust-lang.org/nightly/std/io/trait.BufRead.html) + 
+reading from any [`BufRead`](https://doc.rust-lang.org/nightly/std/io/trait.BufRead.html) +
 [`Seek`](https://doc.rust-lang.org/nightly/std/io/trait.Seek.html) implementor:
 
 ```rust
@@ -58,7 +58,7 @@ for result in decoder {
 
 All fields of the obtained `Record` are optional, and actually depend on the
 kind of data that was compressed. The decoder can be configured through
-the `DecoderBuilder` to ignore some fields to make decompression faster, 
+a `DecoderBuilder` to ignore some fields to make decompression faster,
 even if they are present in the source archive:
 
 ```rust
@@ -103,14 +103,14 @@ in the [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) format.
 ## ⚖️ License
 
 This library is provided under the open-source
-[MIT license](https://choosealicense.com/licenses/mit/). The 
+[MIT license](https://choosealicense.com/licenses/mit/). The
 [NAF specification](https://github.com/KirillKryukov/naf/blob/master/NAFv2.pdf)
 is in the public domain.
 
 *This project is in no way not affiliated, sponsored, or otherwise endorsed
-by the [original NAF authors](https://github.com/KirillKryukov). It was 
-developed by [Martin Larralde](https://github.com/althonos/) during his PhD 
-project at the [European Molecular Biology Laboratory](https://www.embl.de/) 
+by the [original NAF authors](https://github.com/KirillKryukov). It was
+developed by [Martin Larralde](https://github.com/althonos/) during his PhD
+project at the [European Molecular Biology Laboratory](https://www.embl.de/)
 in the [Zeller team](https://github.com/zellerlab).*
 
 ## 📚 References

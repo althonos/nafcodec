@@ -203,6 +203,17 @@ impl Default for DecoderBuilder {
 /// different block components of the archive. This means that the internal
 /// file heavily make use of [`seek`](https://doc.rust-lang.org/std/io/trait.Seek.html#tymethod.seek),
 /// so make sure that the actual type has a fast seeking implementation.
+///
+/// # Thread safety
+///
+/// By default, `Decoder` objects are not [`Send`] because they use reference
+/// counting to share the reader between the different block parsers. Compile
+/// the crate with the *arc* feature to use [`Arc`] instead of [`Rc`], making
+/// the decoder [`Send`].
+///
+/// [`Send`]: https://doc.rust-lang.org/nightly/std/marker/trait.Send.html
+/// [`Rc`]: https://doc.rust-lang.org/nightly/std/rc/struct.Rc.html
+/// [`Arc`]: https://doc.rust-lang.org/nightly/std/sync/struct.Arc.html
 pub struct Decoder<'z, R: BufRead + Seek> {
     header: Header,
 
@@ -223,7 +234,8 @@ impl Decoder<'_, BufReader<File>> {
     /// Create a new decoder from the given path.
     ///
     /// This constructor is a shortcut for `DecoderBuilder::new().from_path(path)`.
-    /// Use `DecoderBuilder` to configure a decoder with more options.
+    /// Use [`DecoderBuilder`](./struct.DecoderBuilder.html) to configure a decoder
+    /// with more options.
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         DecoderBuilder::new().from_path(path)
     }
@@ -233,7 +245,8 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
     /// Create a new decoder from the given reader.
     ///
     /// This constructor is a shortcut for `DecoderBuilder::new().from_reader(reader)`.
-    /// Use `DecoderBuilder` to configure a decoder with more options.
+    /// Use [`DecoderBuilder`](./struct.DecoderBuilder.html) to configure a
+    /// decoder with more options.
     pub fn new(reader: R) -> Result<Self, Error> {
         DecoderBuilder::new().from_reader(reader)
     }

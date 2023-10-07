@@ -1,3 +1,5 @@
+//! Common data types for this crate.
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum MaskUnit {
     Masked(u64),
