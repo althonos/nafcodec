@@ -1,6 +1,5 @@
 use std::ffi::CString;
 use std::io::BufRead;
-use std::io::Read;
 
 use crate::data::MaskUnit;
 use crate::data::SequenceType;

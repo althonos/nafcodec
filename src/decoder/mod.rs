@@ -36,6 +36,7 @@ pub struct DecoderBuilder {
 }
 
 impl DecoderBuilder {
+    /// Create a new decoder builder with default parameters.
     pub fn new() -> Self {
         Self {
             buffer_size: 4096,
@@ -171,6 +172,12 @@ impl DecoderBuilder {
     }
 }
 
+impl Default for DecoderBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// A decoder for Nucleotide Archive Format files.
 ///
 /// The internal reader is shared and accessed non-sequentially to read the
@@ -193,13 +200,23 @@ pub struct Decoder<'z, R: Read + Seek> {
     unit: MaskUnit,
 }
 
+impl Decoder<'_, File> {
+    /// Create a new decoder from the given path.
+    ///
+    /// This constructor is a shortcut for `DecoderBuilder::new().from_path(path)`.
+    /// Use `DecoderBuilder` to configure a decoder with more options.
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        DecoderBuilder::new().from_path(path)
+    }
+}
+
 impl<R: Read + Seek> Decoder<'_, R> {
     /// Create a new decoder from the given reader.
     ///
     /// This constructor is a shortcut for `DecoderBuilder::new().from_reader(reader)`.
     /// Use `DecoderBuilder` to configure a decoder with more options.
-    pub fn new(r: R) -> Result<Self, Error> {
-        DecoderBuilder::new().from_reader(r)
+    pub fn new(reader: R) -> Result<Self, Error> {
+        DecoderBuilder::new().from_reader(reader)
     }
 
     /// Get the header extracted from the archive.

@@ -56,21 +56,9 @@ mod tests {
         let mut s2 = IoSlice::new(f.clone(), 2, 4);
         let mut s3 = IoSlice::new(f.clone(), 4, 6);
 
-        let mut x1 = String::new();
-        let mut x2 = String::new();
-        let mut x3 = String::new();
-
-        s2.read_to_string(&mut x2);
-        assert_eq!(x2, "CD");
-
-        s1.read_to_string(&mut x1);
-        assert_eq!(x1, "AB");
-
-        s3.read_to_string(&mut x3);
-        assert_eq!(x3, "EF");
-
-        x2.clear();
-        s2.read_to_string(&mut x2);
-        assert_eq!(x2, "");
+        assert_eq!(std::io::read_to_string(&mut s2).unwrap(), "CD");
+        assert_eq!(std::io::read_to_string(&mut s1).unwrap(), "AB");
+        assert_eq!(std::io::read_to_string(&mut s3).unwrap(), "EF");
+        assert_eq!(std::io::read_to_string(&mut s2).unwrap(), "");
     }
 }

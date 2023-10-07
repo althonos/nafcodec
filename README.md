@@ -29,11 +29,11 @@ Zstandard decompression.
 - **streaming decoder**: The decoder is implemented using different readers
   each accessing a region of the compressed file, allowing to stream records
   without having to decode full blocks.
+- **optional decoding**: Allow the decoder to skip the decoding of certains 
+  fields, such as ignoring quality strings when they are not needed.
 
 The following features are planned:
 
-- **optional decoding**: Allow the decoder to skip the decoding of certains 
-  fields, such as ignoring quality strings when they are not needed.
 - **encoder**: Implement an encoder as well, using either in-memory buffers
   or temporary files to grow the archive.
 
@@ -43,8 +43,8 @@ Use `naf::Decoder` to iterate over the contents of a Nucleotide Archive Format,
 reading from any `Read` + `Seek` implementor:
 
 ```rust
-let f = std::fs::File::open("data/LuxC.naf").unwrap();
-let mut decoder = naf::decoder::Decoder::new(f).unwrap();
+let mut decoder = naf::decoder::Decoder::from_path("data/LuxC.naf")
+  .expect("failed to open nucleotide archive");
 
 for result in decoder {
     let record = result.unwrap();
@@ -53,7 +53,25 @@ for result in decoder {
 ```
 
 All fields of the obtained `Record` are optional, and actually depend on the
-kind of data that was compressed.
+kind of data that was compressed. The decoder can be configured through
+the `DecoderBuilder` to ignore some fields to make decompression faster, 
+even if they are present in the source archive:
+
+```rust
+let mut decoder = naf::decoder::DecoderBuilder::new()
+    .quality(false)
+    .from_path("data/phix.naf")
+    .expect("failed to open nucleotide archive");
+
+// the archive contains quality strings...
+assert!(decoder.header().flags().has_quality());
+
+// ... but we configured the decoder to ignore them
+for result in decoder {
+    let record = result.unwrap();
+    assert!(record.quality.is_none())
+}
+```
 
 <!-- ## 🔍 See Also -->
 
