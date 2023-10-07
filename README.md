@@ -1,16 +1,16 @@
-# 📦🧬 `naf.rs` [![Stars](https://img.shields.io/github/stars/althonos/naf-rs.svg?style=social&maxAge=3600&label=Star)](https://github.com/althonos/naf-rs/stargazers)
+# 📦🧬 `nafcodec` [![Stars](https://img.shields.io/github/stars/althonos/nafcodec.svg?style=social&maxAge=3600&label=Star)](https://github.com/althonos/nafcodec/stargazers)
 
-*Rust implementation of the [Nucleotide Archive Format (NAF)](https://github.com/KirillKryukov/naf)*.
+*Rust coder/decoder for [Nucleotide Archive Format (NAF)](https://github.com/KirillKryukov/naf) files*.
 
-[![Actions](https://img.shields.io/github/actions/workflow/status/althonos/naf.rs/test.yml?branch=main&style=flat-square&maxAge=600)](https://github.com/althonos/naf.rs/actions)
-[![Codecov](https://img.shields.io/codecov/c/gh/althonos/naf.rs/master.svg?style=flat-square&maxAge=600)](https://codecov.io/gh/althonos/naf.rs)
+[![Actions](https://img.shields.io/github/actions/workflow/status/althonos/nafcodec/test.yml?branch=main&style=flat-square&maxAge=600)](https://github.com/althonos/nafcodec/actions)
+[![Codecov](https://img.shields.io/codecov/c/gh/althonos/nafcodec/master.svg?style=flat-square&maxAge=600)](https://codecov.io/gh/althonos/nafcodec)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square&maxAge=2678400)](https://choosealicense.com/licenses/mit/)
-[![Source](https://img.shields.io/badge/source-GitHub-303030.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/naf.rs)
-[![Mirror](https://img.shields.io/badge/mirror-EMBL-009f4d?style=flat-square&maxAge=2678400)](https://git.embl.de/larralde/naf.rs/)
+[![Source](https://img.shields.io/badge/source-GitHub-303030.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/nafcodec)
+[![Mirror](https://img.shields.io/badge/mirror-EMBL-009f4d?style=flat-square&maxAge=2678400)](https://git.embl.de/larralde/nafcodec/)
 [![Crate](https://img.shields.io/crates/v/naf.svg?maxAge=600&style=flat-square)](https://crates.io/crates/naf)
 [![Documentation](https://img.shields.io/badge/docs.rs-latest-4d76ae.svg?maxAge=2678400&style=flat-square)](https://docs.rs/naf)
-[![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/naf.rs/blob/master/CHANGELOG.md)
-[![GitHub issues](https://img.shields.io/github/issues/althonos/naf.rs.svg?style=flat-square&maxAge=600)](https://github.com/althonos/naf.rs/issues)
+[![Changelog](https://img.shields.io/badge/keep%20a-changelog-8A0707.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/nafcodec/blob/master/CHANGELOG.md)
+[![GitHub issues](https://img.shields.io/github/issues/althonos/nafcodec.svg?style=flat-square&maxAge=600)](https://github.com/althonos/nafcodec/issues)
 
 
 ## 🗺️ Overview
@@ -18,11 +18,14 @@
 [Nucleotide Archive Format](https://github.com/KirillKryukov/naf) is a file 
 format proposed in Kryukov *et al.*[\[1\]](#ref1) in 2019 for storing 
 compressed nucleotide or protein sequences combining 4-bit encoding and 
-[Zstandard](https://github.com/facebook/zstd) compression.
+[Zstandard](https://github.com/facebook/zstd) compression. NAF files can
+be compressed and decompressed using the 
+[original C implementation](https://kirill-kryukov.com/study/naf).
 
 This crate provides a Rust implementation of a NAF decoder, from scratch, 
 using `nom` for parsing the binary format, and `zstd-sys` for handling 
-Zstandard decompression.
+Zstandard decompression. It provides a complete API that allows interacting
+with NAF files in Rust code.
 
 ### 📋 Features
 
@@ -43,7 +46,7 @@ Use `naf::Decoder` to iterate over the contents of a Nucleotide Archive Format,
 reading from any `Read` + `Seek` implementor:
 
 ```rust
-let mut decoder = naf::decoder::Decoder::from_path("data/LuxC.naf")
+let mut decoder = nafcodec::Decoder::from_path("data/LuxC.naf")
   .expect("failed to open nucleotide archive");
 
 for result in decoder {
@@ -58,7 +61,7 @@ the `DecoderBuilder` to ignore some fields to make decompression faster,
 even if they are present in the source archive:
 
 ```rust
-let mut decoder = naf::decoder::DecoderBuilder::new()
+let mut decoder = nafcodec::DecoderBuilder::new()
     .quality(false)
     .from_path("data/phix.naf")
     .expect("failed to open nucleotide archive");
@@ -80,26 +83,27 @@ for result in decoder {
 ### ⚠️ Issue Tracker
 
 Found a bug ? Have an enhancement request ? Head over to the [GitHub issue
-tracker](https://github.com/althonos/naf.rs/issues) if you need to report
+tracker](https://github.com/althonos/nafcodec/issues) if you need to report
 or ask something. If you are filing in on a bug, please include as much
 information as you can about the issue, and try to recreate the same bug
 in a simple, easily reproducible situation.
 
 <!-- ### 🏗️ Contributing
 
-Contributions are more than welcome! See [`CONTRIBUTING.md`](https://github.com/althonos/naf.rs/blob/master/CONTRIBUTING.md) for more details. -->
+Contributions are more than welcome! See [`CONTRIBUTING.md`](https://github.com/althonos/nafcodec/blob/master/CONTRIBUTING.md) for more details. -->
 
 
 ## 📋 Changelog
 
 This project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html)
-and provides a [changelog](https://github.com/althonos/naf.rs/blob/master/CHANGELOG.md)
+and provides a [changelog](https://github.com/althonos/nafcodec/blob/master/CHANGELOG.md)
 in the [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) format.
 
 ## ⚖️ License
 
 This library is provided under the open-source
-[MIT license](https://choosealicense.com/licenses/mit/). The NAF specification
+[MIT license](https://choosealicense.com/licenses/mit/). The 
+[NAF specification](https://github.com/KirillKryukov/naf/blob/master/NAFv2.pdf)
 is in the public domain.
 
 *This project is in no way not affiliated, sponsored, or otherwise endorsed

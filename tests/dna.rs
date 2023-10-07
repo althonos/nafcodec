@@ -1,8 +1,6 @@
-extern crate naf;
-
-use naf::data::SequenceType;
-use naf::decoder::Decoder;
-use naf::decoder::DecoderBuilder;
+use nafcodec::data::SequenceType;
+use nafcodec::Decoder;
+use nafcodec::DecoderBuilder;
 
 const GENOME: &[u8] = include_bytes!("../data/NZ_AAEN01000029.naf");
 const MASKED: &[u8] = include_bytes!("../data/masked.naf");

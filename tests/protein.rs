@@ -1,7 +1,5 @@
-extern crate naf;
-
-use naf::data::SequenceType;
-use naf::decoder::Decoder;
+use nafcodec::data::SequenceType;
+use nafcodec::Decoder;
 
 #[test]
 fn decode() {
