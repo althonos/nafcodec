@@ -59,7 +59,7 @@ impl<R: BufRead> LengthReader<R> {
 pub struct SequenceReader<R: BufRead> {
     reader: R,
     ty: SequenceType,
-    cache: Option<u8>,
+    cache: Option<char>,
 }
 
 impl<R: BufRead> SequenceReader<R> {
@@ -72,35 +72,42 @@ impl<R: BufRead> SequenceReader<R> {
     }
 
     pub fn next(&mut self, length: u64) -> Result<String, std::io::Error> {
-        let mut sequence = Vec::with_capacity(length as usize);
-        if self.cache.is_some() && length > 0 {
-            sequence.push(self.cache.take().unwrap());
+        let l = length as usize;
+        if self.ty.is_nucleotide() {
+            let mut sequence = String::with_capacity(l);
+            if self.cache.is_some() && l > 0 {
+                sequence.push(self.cache.take().unwrap());
+            }
+            while sequence.len() < l {
+                match self.ty {
+                    SequenceType::Dna => self.read_nucleotide::<'T'>(l, &mut sequence)?,
+                    SequenceType::Rna => self.read_nucleotide::<'U'>(l, &mut sequence)?,
+                    _ => unreachable!(),
+                }
+            }
+            Ok(sequence)
+        } else {
+            let mut sequence = Vec::with_capacity(l);
+            while sequence.len() < l {
+                self.read_text(l, &mut sequence)?;
+            }
+            String::from_utf8(sequence)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
         }
-
-        while (sequence.len() as u64) < length {
-            match self.ty {
-                SequenceType::Dna => self.read_nucleotide::<b'T'>(length, &mut sequence),
-                SequenceType::Rna => self.read_nucleotide::<b'U'>(length, &mut sequence),
-                SequenceType::Protein | SequenceType::Text => self.read_text(length, &mut sequence),
-            }?;
-        }
-
-        String::from_utf8(sequence)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 
-    fn read_text(&mut self, length: u64, sequence: &mut Vec<u8>) -> Result<(), std::io::Error> {
+    fn read_text(&mut self, length: usize, sequence: &mut Vec<u8>) -> Result<(), std::io::Error> {
         let buffer = self.reader.fill_buf()?;
-        let n_to_copy = buffer.len().min(length as usize - sequence.len());
+        let n_to_copy = buffer.len().min(length - sequence.len());
         sequence.extend_from_slice(&buffer[..n_to_copy]);
         self.reader.consume(n_to_copy);
         Ok(())
     }
 
-    fn read_nucleotide<const T: u8>(
+    fn read_nucleotide<const T: char>(
         &mut self,
-        length: u64,
-        sequence: &mut Vec<u8>,
+        length: usize,
+        sequence: &mut String,
     ) -> Result<(), std::io::Error> {
         let buffer = self.reader.fill_buf()?;
 
@@ -127,24 +134,24 @@ impl<R: BufRead> SequenceReader<R> {
         Ok(())
     }
 
-    fn decode<const T: u8>(c: u8) -> u8 {
+    fn decode<const T: char>(c: u8) -> char {
         match c {
-            0x00 => b'-',
+            0x00 => '-',
             0x01 => T,
-            0x02 => b'G',
-            0x03 => b'K',
-            0x04 => b'C',
-            0x05 => b'Y',
-            0x06 => b'S',
-            0x07 => b'B',
-            0x08 => b'A',
-            0x09 => b'W',
-            0x0A => b'R',
-            0x0B => b'D',
-            0x0C => b'M',
-            0x0D => b'H',
-            0x0E => b'V',
-            0x0F => b'N',
+            0x02 => 'G',
+            0x03 => 'K',
+            0x04 => 'C',
+            0x05 => 'Y',
+            0x06 => 'S',
+            0x07 => 'B',
+            0x08 => 'A',
+            0x09 => 'W',
+            0x0A => 'R',
+            0x0B => 'D',
+            0x0C => 'M',
+            0x0D => 'H',
+            0x0E => 'V',
+            0x0F => 'N',
             _ => unreachable!(),
         }
     }

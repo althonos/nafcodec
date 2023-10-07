@@ -29,6 +29,7 @@ pub enum FormatVersion {
     V2,
 }
 
+/// The type of sequence stored in a Nucleotide Archive Format file.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum SequenceType {
     #[default]
@@ -36,6 +37,16 @@ pub enum SequenceType {
     Rna,
     Protein,
     Text,
+}
+
+impl SequenceType {
+    /// Check whether the sequence type is a nucleotide type.
+    pub fn is_nucleotide(&self) -> bool {
+        match self {
+            Self::Dna | Self::Rna => true,
+            Self::Protein | Self::Text => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
