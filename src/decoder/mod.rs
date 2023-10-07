@@ -14,6 +14,7 @@ mod reader;
 use self::ioslice::IoSlice;
 use self::reader::*;
 use crate::data::Header;
+use crate::data::MaskUnit;
 use crate::data::Record;
 use crate::data::SequenceType;
 use crate::error::Error;
@@ -29,7 +30,9 @@ pub struct Decoder<'z, R: Read + Seek> {
     seq: Option<SequenceReader<ZstdDecoder<'z, R>>>,
     qual: Option<SequenceReader<ZstdDecoder<'z, R>>>,
     mask: Option<MaskReader<ZstdDecoder<'z, R>>>,
+
     n: usize,
+    unit: MaskUnit,
 }
 
 impl<R: Read + Seek> Decoder<'_, R> {
@@ -139,6 +142,7 @@ impl<R: Read + Seek> Decoder<'_, R> {
 
             // reader,
             header,
+            unit: MaskUnit::Unmasked(0),
         })
     }
 
@@ -166,6 +170,9 @@ impl<R: Read + Seek> Decoder<'_, R> {
         if let Some(l) = length {
             sequence = self.seq.as_mut().map(|r| r.next(l)).transpose()?;
             quality = self.qual.as_mut().map(|r| r.next(l)).transpose()?;
+            if let Some(mut seq) = sequence.as_mut() {
+                self.mask_sequence(&mut seq)?;
+            }
         }
 
         self.n += 1;
@@ -176,6 +183,47 @@ impl<R: Read + Seek> Decoder<'_, R> {
             quality,
             length,
         })
+    }
+
+    fn mask_sequence(&mut self, sequence: &mut String) -> Result<(), Error> {
+        let mut mask = self.unit.clone();
+        let mut seq = sequence.as_mut_str();
+
+        if let Some(mut mask_reader) = self.mask.as_mut() {
+            loop {
+                match mask {
+                    MaskUnit::Masked(n) => {
+                        if n < seq.len() as u64 {
+                            seq[..n as usize].make_ascii_lowercase();
+                            seq = &mut seq[n as usize..];
+                        } else {
+                            self.unit = MaskUnit::Masked(n - seq.len() as u64);
+                            break;
+                        }
+                    }
+                    MaskUnit::Unmasked(n) => {
+                        if n < seq.len() as u64 {
+                            seq = &mut seq[n as usize..];
+                        } else {
+                            self.unit = MaskUnit::Unmasked(n - seq.len() as u64);
+                            break;
+                        }
+                    }
+                }
+                mask = match self.mask.as_mut().unwrap().next() {
+                    Some(Ok(x)) => x,
+                    Some(Err(e)) => return Err(Error::Io(e)),
+                    None => {
+                        return Err(Error::Io(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "failed to get mask unit",
+                        )))
+                    }
+                };
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -212,7 +260,7 @@ mod tests {
 
     #[test]
     fn masks() {
-        const ARCHIVE: &[u8] = include_bytes!("../../data/NZ_AAEN01000029.masked.naf");
+        const ARCHIVE: &[u8] = include_bytes!("../../data/masked.naf");
         let decoder = Decoder::new(std::io::Cursor::new(ARCHIVE)).unwrap();
         let mut mask_reader = decoder.mask.unwrap();
         assert_eq!(
@@ -227,8 +275,7 @@ mod tests {
         assert_eq!(mask_reader.next().unwrap().unwrap(), MaskUnit::Masked(39));
         assert_eq!(
             mask_reader.next().unwrap().unwrap(),
-            MaskUnit::Unmasked(200)
+            MaskUnit::Unmasked(725)
         );
-        assert!(mask_reader.next().is_none());
     }
 }

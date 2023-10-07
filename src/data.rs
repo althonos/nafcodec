@@ -4,6 +4,15 @@ pub enum MaskUnit {
     Unmasked(u64),
 }
 
+impl MaskUnit {
+    pub fn as_u64(&self) -> u64 {
+        match self {
+            MaskUnit::Masked(n) => *n,
+            MaskUnit::Unmasked(n) => *n,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Record {
     pub id: Option<String>,

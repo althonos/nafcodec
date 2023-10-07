@@ -35,16 +35,31 @@ fn decode() {
 
 #[test]
 fn mask() {
-    const ARCHIVE: &[u8] = include_bytes!("../data/NZ_AAEN01000029.masked.naf");
+    const ARCHIVE: &[u8] = include_bytes!("../data/masked.naf");
 
     let c = std::io::Cursor::new(ARCHIVE);
     let mut decoder = Decoder::new(c).unwrap();
 
     assert_eq!(decoder.header().name_separator(), ' ');
-    assert_eq!(decoder.header().number_of_sequences(), 1);
+    assert_eq!(decoder.header().number_of_sequences(), 2);
     assert_eq!(decoder.header().line_length(), 50);
     assert_eq!(decoder.header().sequence_type(), SequenceType::Dna);
 
     let r1 = decoder.next().unwrap().unwrap();
-    assert_eq!(r1.id.unwrap(), "NZ_AAEN01000029.1");
+    assert_eq!(r1.id.unwrap(), "test1");
+    let seq = r1.sequence.unwrap();
+    assert!(seq[..657].chars().all(|x| x.is_uppercase()));
+    assert!(seq[657..676].chars().all(|x| x.is_lowercase()));
+    assert!(seq[676..1311].chars().all(|x| x.is_uppercase()));
+    assert!(seq[1311..1350].chars().all(|x| x.is_lowercase()));
+
+    let r2 = decoder.next().unwrap().unwrap();
+    assert_eq!(r2.id.unwrap(), "test2");
+    let seq = r2.sequence.unwrap();
+    assert!(seq[..525].chars().all(|x| x.is_uppercase()));
+    assert!(seq[525..621].chars().all(|x| x.is_lowercase()));
+    assert!(seq[621..720].chars().all(|x| x.is_uppercase()));
+    assert!(seq[720..733].chars().all(|x| x.is_lowercase()));
+
+    assert!(decoder.next().is_none());
 }
