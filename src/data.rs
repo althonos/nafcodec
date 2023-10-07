@@ -1,3 +1,9 @@
+#[derive(Debug, Clone, PartialEq)]
+pub enum MaskUnit {
+    Masked(u64),
+    Unmasked(u64),
+}
+
 #[derive(Debug, Clone)]
 pub struct Record {
     pub id: Option<String>,

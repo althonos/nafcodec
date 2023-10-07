@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::io::BufRead;
 use std::io::Read;
 
+use crate::data::MaskUnit;
 use crate::data::SequenceType;
 
 // --- CStringReader -----------------------------------------------------------
@@ -150,32 +151,53 @@ impl<R: BufRead> SequenceReader<R> {
 #[derive(Debug)]
 pub struct MaskReader<R: BufRead> {
     reader: R,
+    total: u64,
+    current: u64,
+    mask: bool,
 }
 
 impl<R: BufRead> MaskReader<R> {
-    pub fn new(reader: R) -> Self {
-        Self { reader }
+    pub fn new(reader: R, total: u64) -> Self {
+        Self {
+            reader,
+            total,
+            current: 0,
+            mask: false,
+        }
     }
 
-    pub fn next(&mut self) -> Result<u64, std::io::Error> {
+    pub fn next(&mut self) -> Option<Result<MaskUnit, std::io::Error>> {
+        if self.current >= self.total {
+            return None;
+        }
+
         let mut n = 0u64;
         loop {
-            let mut buf = self.reader.fill_buf()?;
-            if buf.len() == 0 {
-                break;
-            }
             let mut i = 0;
+            let buf = match self.reader.fill_buf() {
+                Err(e) => return Some(Err(e)),
+                Ok(buf) if buf.len() == 0 => break,
+                Ok(buf) => buf,
+            };
             while i < buf.len() && buf[i] == 0xFF {
                 n += 0xFF;
                 i += 1;
             }
             if i < buf.len() {
                 n += buf[i] as u64;
-                self.reader.consume(i);
+                self.reader.consume(i + 1);
                 break;
             }
             self.reader.consume(i);
         }
-        Ok(n)
+
+        self.current += n;
+        if self.mask {
+            self.mask = false;
+            Some(Ok(MaskUnit::Masked(n)))
+        } else {
+            self.mask = true;
+            Some(Ok(MaskUnit::Unmasked(n)))
+        }
     }
 }

@@ -58,13 +58,18 @@ impl<R: Read + Seek> Decoder<'_, R> {
         let reader_rc = Rc::new(RwLock::new(reader));
         macro_rules! setup_block {
             ($reader_rc:ident, $block:ident) => {
+                let _length: u64;
+                setup_block!($reader_rc, $block, _length);
+            };
+            ($reader_rc:ident, $block:ident, $block_length:ident) => {
                 // create a local copy of the reader that we can access
                 let tee = $reader_rc.clone();
                 let mut handle = $reader_rc.write().unwrap();
                 // decode the block size
                 let buf = handle.fill_buf()?;
-                let (i, _original_size) = self::parser::variable_u64(buf)?;
+                let (i, original_size) = self::parser::variable_u64(buf)?;
                 let (i, compressed_size) = self::parser::variable_u64(i)?;
+                $block_length = original_size;
                 let consumed = buf.len() - i.len();
                 handle.consume(consumed);
                 // setup the independent decoder for the block
@@ -107,8 +112,9 @@ impl<R: Read + Seek> Decoder<'_, R> {
         }
 
         let sequence_block;
+        let mut sequence_length = 0;
         if header.flags().has_sequence() {
-            setup_block!(reader_rc, sequence_block);
+            setup_block!(reader_rc, sequence_block, sequence_length);
         } else {
             sequence_block = None;
         }
@@ -126,7 +132,7 @@ impl<R: Read + Seek> Decoder<'_, R> {
             len: lengths_block.map(LengthReader::new),
             seq: sequence_block.map(|x| SequenceReader::new(x, header.sequence_type())),
             qual: quality_block.map(|x| SequenceReader::new(x, SequenceType::Text)),
-            mask: mask_block.map(MaskReader::new),
+            mask: mask_block.map(|x| MaskReader::new(x, sequence_length)),
 
             n: 0,
 
@@ -197,15 +203,15 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
                 Some(Err(e)) => return Some(Err(e)),
             };
 
-            let mask = match self
-                .mask
-                .as_mut()
-                .map(|reader| reader.next().map_err(Error::from))
-            {
-                None => None,
-                Some(Ok(mask)) => Some(mask),
-                Some(Err(e)) => return Some(Err(e)),
-            };
+            // let mask = match self
+            //     .mask
+            //     .as_mut()
+            //     .map(|reader| reader.next().map_err(Error::from))
+            // {
+            //     None => None,
+            //     Some(Ok(mask)) => Some(mask),
+            //     Some(Err(e)) => return Some(Err(e)),
+            // };
 
             (sequence, quality)
         } else {
@@ -231,13 +237,36 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::MaskUnit;
 
     const ARCHIVE: &[u8] = include_bytes!("../../data/LuxC.naf");
 
     #[test]
     fn decoder() {
-        let reader = Decoder::new(std::io::Cursor::new(ARCHIVE)).unwrap();
-        let records = reader.collect::<Result<Vec<_>, _>>().unwrap();
+        let decoder = Decoder::new(std::io::Cursor::new(ARCHIVE)).unwrap();
+        let records = decoder.collect::<Result<Vec<_>, _>>().unwrap();
         assert_eq!(records.len(), 12);
+    }
+
+    #[test]
+    fn masks() {
+        const ARCHIVE: &[u8] = include_bytes!("../../data/NZ_AAEN01000029.masked.naf");
+        let decoder = Decoder::new(std::io::Cursor::new(ARCHIVE)).unwrap();
+        let mut mask_reader = decoder.mask.unwrap();
+        assert_eq!(
+            mask_reader.next().unwrap().unwrap(),
+            MaskUnit::Unmasked(657)
+        );
+        assert_eq!(mask_reader.next().unwrap().unwrap(), MaskUnit::Masked(19));
+        assert_eq!(
+            mask_reader.next().unwrap().unwrap(),
+            MaskUnit::Unmasked(635)
+        );
+        assert_eq!(mask_reader.next().unwrap().unwrap(), MaskUnit::Masked(39));
+        assert_eq!(
+            mask_reader.next().unwrap().unwrap(),
+            MaskUnit::Unmasked(200)
+        );
+        assert!(mask_reader.next().is_none());
     }
 }

@@ -32,3 +32,19 @@ fn decode() {
     let records = decoder.collect::<Result<Vec<_>, _>>().unwrap();
     assert_eq!(records.len(), 28);
 }
+
+#[test]
+fn mask() {
+    const ARCHIVE: &[u8] = include_bytes!("../data/NZ_AAEN01000029.masked.naf");
+
+    let c = std::io::Cursor::new(ARCHIVE);
+    let mut decoder = Decoder::new(c).unwrap();
+
+    assert_eq!(decoder.header().name_separator(), ' ');
+    assert_eq!(decoder.header().number_of_sequences(), 30);
+    assert_eq!(decoder.header().line_length(), 80);
+    assert_eq!(decoder.header().sequence_type(), SequenceType::Dna);
+
+    let r1 = decoder.next().unwrap().unwrap();
+    assert_eq!(r1.id.unwrap(), "NZ_AAEN01000029.1");
+}
