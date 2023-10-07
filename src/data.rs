@@ -41,6 +41,7 @@ pub enum SequenceType {
 
 impl SequenceType {
     /// Check whether the sequence type is a nucleotide type.
+    #[inline]
     pub fn is_nucleotide(&self) -> bool {
         match self {
             Self::Dna | Self::Rna => true,
@@ -92,12 +93,12 @@ impl Flags {
 
 #[derive(Debug, Default, Clone)]
 pub struct Header {
-    pub format_version: FormatVersion,
-    pub sequence_type: SequenceType,
-    pub flags: Flags,
-    pub name_separator: char,
-    pub line_length: u64,
-    pub number_of_sequences: u64,
+    pub(crate) format_version: FormatVersion,
+    pub(crate) sequence_type: SequenceType,
+    pub(crate) flags: Flags,
+    pub(crate) name_separator: char,
+    pub(crate) line_length: u64,
+    pub(crate) number_of_sequences: u64,
 }
 
 impl Header {

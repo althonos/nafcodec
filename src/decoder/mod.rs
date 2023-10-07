@@ -225,6 +225,7 @@ impl<R: Read + Seek> Decoder<'_, R> {
     /// starting to decode the rest of the archive, such as the total number
     /// of sequences (useful for building a progress bar) or the line length
     /// (useful for writing the decoded sequences in FASTA format).
+    #[inline]
     pub fn header(&self) -> &Header {
         &self.header
     }

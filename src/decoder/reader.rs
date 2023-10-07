@@ -133,6 +133,7 @@ impl<R: BufRead> SequenceReader<R> {
         Ok(())
     }
 
+    #[inline]
     fn decode<const T: char>(c: u8) -> char {
         match c {
             0x00 => '-',
