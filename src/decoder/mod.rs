@@ -1,10 +1,12 @@
 use std::fmt::Debug;
+use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::iter::FusedIterator;
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::RwLock;
 
@@ -24,12 +26,157 @@ use crate::error::Error;
 type ZstdDecoder<'z, R> =
     BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<BufReader<R>>>>>;
 
+/// A builder to configure and initialize a decoder.
+#[derive(Debug, Clone)]
+pub struct DecoderBuilder {
+    buffer_size: usize,
+    quality: bool,
+    sequence: bool,
+}
+
+impl DecoderBuilder {
+    pub fn new() -> Self {
+        Self {
+            buffer_size: 4096,
+            quality: true,
+            sequence: true,
+        }
+    }
+
+    /// Build a decoder with this configuration that reads data from the given file path.
+    pub fn from_path<'z, P: AsRef<Path>>(&self, path: P) -> Result<Decoder<'z, File>, Error> {
+        File::open(path.as_ref())
+            .map_err(Error::from)
+            .and_then(|f| self.from_reader(f))
+    }
+
+    /// Build a decoder with this configuration that reads data from `reader`.
+    pub fn from_reader<'z, R: Read + Seek>(&self, reader: R) -> Result<Decoder<'z, R>, Error> {
+        let mut r = BufReader::with_capacity(self.buffer_size, reader);
+
+        let buffer = r.fill_buf()?;
+        let header = match self::parser::header(buffer) {
+            Ok((i, header)) => {
+                let consumed = buffer.len() - i.len();
+                r.consume(consumed);
+                header
+            }
+            Err(nom::Err::Incomplete(_)) => {
+                return Err(Error::from(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "failed to read header",
+                )));
+            }
+            Err(nom::Err::Error(e) | nom::Err::Failure(e)) => {
+                return Err(Error::from(e));
+            }
+        };
+
+        if header.flags().has_title() {
+            let buf = r.buffer();
+            let (i, _title) = self::parser::title(buf)?;
+            let consumed = buf.len() - i.len();
+            r.consume(consumed);
+        }
+
+        let reader_rc = Rc::new(RwLock::new(r));
+        macro_rules! setup_block {
+            ($flag:expr, $use_block:expr, $reader_rc:ident, $block:ident) => {
+                let _length: u64;
+                setup_block!($flag, $use_block, $reader_rc, $block, _length);
+            };
+            ($flag:expr, $use_block:expr, $reader_rc:ident, $block:ident, $block_length:ident) => {
+                let $block;
+                if $flag {
+                    // create a local copy of the reader that we can access
+                    let tee = $reader_rc.clone();
+                    let mut handle = $reader_rc.write().unwrap();
+                    // decode the block size
+                    let buf = handle.fill_buf()?;
+                    let (i, original_size) = self::parser::variable_u64(buf)?;
+                    let (i, compressed_size) = self::parser::variable_u64(i)?;
+                    $block_length = original_size;
+                    let consumed = buf.len() - i.len();
+                    handle.consume(consumed);
+                    // setup the independent decoder for the block
+                    if $use_block {
+                        let pos = handle.stream_position()?;
+                        let tee_slice = IoSlice::new(tee, pos, pos + compressed_size);
+                        let mut decoder = zstd::stream::read::Decoder::new(tee_slice)?;
+                        decoder.include_magicbytes(false)?;
+                        $block = Some(BufReader::with_capacity(self.buffer_size, decoder));
+                    } else {
+                        $block = None;
+                    }
+                    // skip the block with the main reader
+                    handle.seek(SeekFrom::Current(compressed_size as i64))?;
+                } else {
+                    $block = None;
+                }
+            };
+        }
+
+        let flags = header.flags();
+        let mut seqlen = 0;
+        setup_block!(flags.has_ids(), true, reader_rc, ids_block);
+        setup_block!(flags.has_comments(), true, reader_rc, com_block);
+        setup_block!(flags.has_lengths(), true, reader_rc, len_block);
+        setup_block!(flags.has_mask(), true, reader_rc, mask_block);
+        setup_block!(
+            flags.has_sequence(),
+            self.sequence,
+            reader_rc,
+            seq_block,
+            seqlen
+        );
+        setup_block!(flags.has_quality(), self.quality, reader_rc, quality_block);
+
+        Ok(Decoder {
+            ids: ids_block.map(CStringReader::new),
+            com: com_block.map(CStringReader::new),
+            len: len_block.map(LengthReader::new),
+            seq: seq_block.map(|x| SequenceReader::new(x, header.sequence_type())),
+            qual: quality_block.map(|x| SequenceReader::new(x, SequenceType::Text)),
+            mask: mask_block.map(|x| MaskReader::new(x, seqlen)),
+
+            n: 0,
+
+            header,
+            reader: reader_rc,
+            unit: MaskUnit::Unmasked(0),
+        })
+    }
+
+    /// The buffer size to use while reading.
+    ///
+    /// Note that `Decoder` uses a lot of buffered I/O, and that more than
+    /// one buffer will be created. Nevertheless, a higher value will reduce
+    /// the necessity to [`seek`] the reader while reading the different
+    /// blocks.
+    pub fn buffer_size(&mut self, buffer_size: usize) -> &mut Self {
+        self.buffer_size = buffer_size;
+        self
+    }
+
+    /// Whether or not to decode the sequence string if available.
+    pub fn sequence(&mut self, sequence: bool) -> &mut Self {
+        self.sequence = sequence;
+        self
+    }
+
+    /// Whether or not to decode the quality string if available.
+    pub fn quality(&mut self, quality: bool) -> &mut Self {
+        self.quality = quality;
+        self
+    }
+}
+
 /// A decoder for Nucleotide Archive Format files.
 ///
 /// The internal reader is shared and accessed non-sequentially to read the
 /// different block components of the archive. This means that the internal
-/// file heavily make use of `seek`; make sure that the actual object has a
-/// fast seeking implementation.
+/// file heavily make use of [`seek`], so make sure that the actual object
+/// has a fast seeking implementation.
 pub struct Decoder<'z, R: Read + Seek> {
     header: Header,
 
@@ -48,90 +195,11 @@ pub struct Decoder<'z, R: Read + Seek> {
 
 impl<R: Read + Seek> Decoder<'_, R> {
     /// Create a new decoder from the given reader.
+    ///
+    /// This constructor is a shortcut for `DecoderBuilder::new().from_reader(reader)`.
+    /// Use `DecoderBuilder` to configure a decoder with more options.
     pub fn new(r: R) -> Result<Self, Error> {
-        let mut reader = BufReader::with_capacity(4096, r);
-
-        let buffer = reader.fill_buf()?;
-        let header = match self::parser::header(buffer) {
-            Ok((i, header)) => {
-                let consumed = buffer.len() - i.len();
-                reader.consume(consumed);
-                header
-            }
-            Err(nom::Err::Incomplete(_)) => {
-                return Err(Error::from(std::io::Error::new(
-                    std::io::ErrorKind::UnexpectedEof,
-                    "failed to read header",
-                )));
-            }
-            Err(nom::Err::Error(e) | nom::Err::Failure(e)) => {
-                return Err(Error::from(e));
-            }
-        };
-
-        if header.flags().has_title() {
-            let buf = reader.buffer();
-            let (i, _title) = self::parser::title(buf)?;
-            let consumed = buf.len() - i.len();
-            reader.consume(consumed);
-        }
-
-        let reader_rc = Rc::new(RwLock::new(reader));
-        macro_rules! setup_block {
-            ($flag:expr, $reader_rc:ident, $block:ident) => {
-                let _length: u64;
-                setup_block!($flag, $reader_rc, $block, _length);
-            };
-            ($flag:expr, $reader_rc:ident, $block:ident, $block_length:ident) => {
-                let $block;
-                if $flag {
-                    // create a local copy of the reader that we can access
-                    let tee = $reader_rc.clone();
-                    let mut handle = $reader_rc.write().unwrap();
-                    // decode the block size
-                    let buf = handle.fill_buf()?;
-                    let (i, original_size) = self::parser::variable_u64(buf)?;
-                    let (i, compressed_size) = self::parser::variable_u64(i)?;
-                    $block_length = original_size;
-                    let consumed = buf.len() - i.len();
-                    handle.consume(consumed);
-                    // setup the independent decoder for the block
-                    let pos = handle.stream_position()?;
-                    let tee_slice = IoSlice::new(tee, pos, pos + compressed_size);
-                    let mut decoder = zstd::stream::read::Decoder::new(tee_slice)?;
-                    decoder.include_magicbytes(false)?;
-                    $block = Some(BufReader::new(decoder));
-                    // skip the block with the main reader
-                    handle.seek(SeekFrom::Current(compressed_size as i64))?;
-                } else {
-                    $block = None;
-                }
-            };
-        }
-
-        let flags = header.flags();
-        let mut seqlen = 0;
-        setup_block!(flags.has_ids(), reader_rc, ids_block);
-        setup_block!(flags.has_comments(), reader_rc, com_block);
-        setup_block!(flags.has_lengths(), reader_rc, len_block);
-        setup_block!(flags.has_mask(), reader_rc, mask_block);
-        setup_block!(flags.has_sequence(), reader_rc, seq_block, seqlen);
-        setup_block!(flags.has_quality(), reader_rc, quality_block);
-
-        Ok(Self {
-            ids: ids_block.map(CStringReader::new),
-            com: com_block.map(CStringReader::new),
-            len: len_block.map(LengthReader::new),
-            seq: seq_block.map(|x| SequenceReader::new(x, header.sequence_type())),
-            qual: quality_block.map(|x| SequenceReader::new(x, SequenceType::Text)),
-            mask: mask_block.map(|x| MaskReader::new(x, seqlen)),
-
-            n: 0,
-
-            header,
-            reader: reader_rc,
-            unit: MaskUnit::Unmasked(0),
-        })
+        DecoderBuilder::new().from_reader(r)
     }
 
     /// Get the header extracted from the archive.
@@ -300,5 +368,16 @@ mod tests {
             mask_reader.next().unwrap().unwrap(),
             MaskUnit::Unmasked(725)
         );
+    }
+
+    #[test]
+    fn skip_sequence() {
+        let decoder = DecoderBuilder::new()
+            .sequence(false)
+            .from_reader(std::io::Cursor::new(ARCHIVE))
+            .unwrap();
+        for record in decoder.map(Result::unwrap) {
+            assert!(record.sequence.is_none());
+        }
     }
 }
