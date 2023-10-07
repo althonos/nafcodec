@@ -3,6 +3,7 @@ use std::io::BufReader;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
+use std::iter::FusedIterator;
 use std::rc::Rc;
 use std::sync::RwLock;
 
@@ -192,6 +193,8 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
         (0, Some(remaining))
     }
 }
+
+impl<R: Read + Seek> FusedIterator for Decoder<'_, R> {}
 
 #[cfg(test)]
 mod tests {
