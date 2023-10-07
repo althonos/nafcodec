@@ -144,3 +144,38 @@ impl<R: BufRead> SequenceReader<R> {
         }
     }
 }
+
+// --- MaskReader --------------------------------------------------------------
+
+#[derive(Debug)]
+pub struct MaskReader<R: BufRead> {
+    reader: R,
+}
+
+impl<R: BufRead> MaskReader<R> {
+    pub fn new(reader: R) -> Self {
+        Self { reader }
+    }
+
+    pub fn next(&mut self) -> Result<u64, std::io::Error> {
+        let mut n = 0u64;
+        loop {
+            let mut buf = self.reader.fill_buf()?;
+            if buf.len() == 0 {
+                break;
+            }
+            let mut i = 0;
+            while i < buf.len() && buf[i] == 0xFF {
+                n += 0xFF;
+                i += 1;
+            }
+            if i < buf.len() {
+                n += buf[i] as u64;
+                self.reader.consume(i);
+                break;
+            }
+            self.reader.consume(i);
+        }
+        Ok(n)
+    }
+}

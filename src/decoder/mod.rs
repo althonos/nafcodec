@@ -27,6 +27,7 @@ pub struct Decoder<'z, R: Read + Seek> {
     len: Option<LengthReader<ZstdDecoder<'z, R>>>,
     seq: Option<SequenceReader<ZstdDecoder<'z, R>>>,
     qual: Option<SequenceReader<ZstdDecoder<'z, R>>>,
+    mask: Option<MaskReader<ZstdDecoder<'z, R>>>,
     n: usize,
 }
 
@@ -125,6 +126,7 @@ impl<R: Read + Seek> Decoder<'_, R> {
             len: lengths_block.map(LengthReader::new),
             seq: sequence_block.map(|x| SequenceReader::new(x, header.sequence_type())),
             qual: quality_block.map(|x| SequenceReader::new(x, SequenceType::Text)),
+            mask: mask_block.map(MaskReader::new),
 
             n: 0,
 
@@ -194,6 +196,17 @@ impl<R: Read + Seek> Iterator for Decoder<'_, R> {
                 Some(Ok(qual)) => Some(qual),
                 Some(Err(e)) => return Some(Err(e)),
             };
+
+            let mask = match self
+                .mask
+                .as_mut()
+                .map(|reader| reader.next().map_err(Error::from))
+            {
+                None => None,
+                Some(Ok(mask)) => Some(mask),
+                Some(Err(e)) => return Some(Err(e)),
+            };
+
             (sequence, quality)
         } else {
             (None, None)
