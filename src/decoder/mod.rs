@@ -69,82 +69,53 @@ impl<R: Read + Seek> Decoder<'_, R> {
 
         let reader_rc = Rc::new(RwLock::new(reader));
         macro_rules! setup_block {
-            ($reader_rc:ident, $block:ident) => {
+            ($flag:expr, $reader_rc:ident, $block:ident) => {
                 let _length: u64;
-                setup_block!($reader_rc, $block, _length);
+                setup_block!($flag, $reader_rc, $block, _length);
             };
-            ($reader_rc:ident, $block:ident, $block_length:ident) => {
-                // create a local copy of the reader that we can access
-                let tee = $reader_rc.clone();
-                let mut handle = $reader_rc.write().unwrap();
-                // decode the block size
-                let buf = handle.fill_buf()?;
-                let (i, original_size) = self::parser::variable_u64(buf)?;
-                let (i, compressed_size) = self::parser::variable_u64(i)?;
-                $block_length = original_size;
-                let consumed = buf.len() - i.len();
-                handle.consume(consumed);
-                // setup the independent decoder for the block
-                let pos = handle.stream_position()?;
-                let tee_slice = IoSlice::new(tee, pos, pos + compressed_size);
-                let mut decoder = zstd::stream::read::Decoder::new(tee_slice)?;
-                decoder.include_magicbytes(false)?;
-                $block = Some(BufReader::new(decoder));
-                // skip the block with the main reader
-                handle.seek(SeekFrom::Current(compressed_size as i64))?;
+            ($flag:expr, $reader_rc:ident, $block:ident, $block_length:ident) => {
+                let $block;
+                if $flag {
+                    // create a local copy of the reader that we can access
+                    let tee = $reader_rc.clone();
+                    let mut handle = $reader_rc.write().unwrap();
+                    // decode the block size
+                    let buf = handle.fill_buf()?;
+                    let (i, original_size) = self::parser::variable_u64(buf)?;
+                    let (i, compressed_size) = self::parser::variable_u64(i)?;
+                    $block_length = original_size;
+                    let consumed = buf.len() - i.len();
+                    handle.consume(consumed);
+                    // setup the independent decoder for the block
+                    let pos = handle.stream_position()?;
+                    let tee_slice = IoSlice::new(tee, pos, pos + compressed_size);
+                    let mut decoder = zstd::stream::read::Decoder::new(tee_slice)?;
+                    decoder.include_magicbytes(false)?;
+                    $block = Some(BufReader::new(decoder));
+                    // skip the block with the main reader
+                    handle.seek(SeekFrom::Current(compressed_size as i64))?;
+                } else {
+                    $block = None;
+                }
             };
         }
 
-        let ids_block;
-        if header.flags().has_ids() {
-            setup_block!(reader_rc, ids_block);
-        } else {
-            ids_block = None;
-        }
-
-        let comments_block;
-        if header.flags().has_comments() {
-            setup_block!(reader_rc, comments_block);
-        } else {
-            comments_block = None;
-        }
-
-        let lengths_block;
-        if header.flags().has_lengths() {
-            setup_block!(reader_rc, lengths_block);
-        } else {
-            lengths_block = None;
-        }
-
-        let mask_block;
-        if header.flags().has_mask() {
-            setup_block!(reader_rc, mask_block);
-        } else {
-            mask_block = None;
-        }
-
-        let sequence_block;
-        let mut sequence_length = 0;
-        if header.flags().has_sequence() {
-            setup_block!(reader_rc, sequence_block, sequence_length);
-        } else {
-            sequence_block = None;
-        }
-
-        let quality_block;
-        if header.flags().has_quality() {
-            setup_block!(reader_rc, quality_block);
-        } else {
-            quality_block = None;
-        }
+        let flags = header.flags();
+        let mut seqlen = 0;
+        setup_block!(flags.has_ids(), reader_rc, ids_block);
+        setup_block!(flags.has_comments(), reader_rc, com_block);
+        setup_block!(flags.has_lengths(), reader_rc, len_block);
+        setup_block!(flags.has_mask(), reader_rc, mask_block);
+        setup_block!(flags.has_sequence(), reader_rc, seq_block, seqlen);
+        setup_block!(flags.has_quality(), reader_rc, quality_block);
 
         Ok(Self {
             ids: ids_block.map(CStringReader::new),
-            com: comments_block.map(CStringReader::new),
-            len: lengths_block.map(LengthReader::new),
-            seq: sequence_block.map(|x| SequenceReader::new(x, header.sequence_type())),
+            com: com_block.map(CStringReader::new),
+            len: len_block.map(LengthReader::new),
+            seq: seq_block.map(|x| SequenceReader::new(x, header.sequence_type())),
             qual: quality_block.map(|x| SequenceReader::new(x, SequenceType::Text)),
-            mask: mask_block.map(|x| MaskReader::new(x, sequence_length)),
+            mask: mask_block.map(|x| MaskReader::new(x, seqlen)),
 
             n: 0,
 
