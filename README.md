@@ -23,9 +23,10 @@ be compressed and decompressed using the
 [original C implementation](https://kirill-kryukov.com/study/naf).
 
 This crate provides a Rust implementation of a NAF decoder, from scratch,
-using `nom` for parsing the binary format, and `zstd-sys` for handling
-Zstandard decompression. It provides a complete API that allows interacting
-with NAF files in Rust code.
+using [`nom`](https://crates.io/crates/nom) for parsing the binary format, 
+and [`zstd`](https://crates.io/crates/zstd) for handling Zstandard 
+decompression. It provides a complete API that allows iterating over
+the contents of a NAF file.
 
 ### 📋 Features
 
