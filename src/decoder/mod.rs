@@ -26,7 +26,20 @@ use crate::error::Error;
 type ZstdDecoder<'z, R> =
     BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<BufReader<R>>>>>;
 
-/// A builder to configure and initialize a decoder.
+/// A builder to configure and initialize a [`Decoder`](./struct.Decoder.html).
+///
+/// Use the provided methods to avoid decoding uneeded fields. For instance,
+/// to read a nucleotide archive and only extract sequences names:
+/// ```rust
+/// let decoder = nafcodec::DecoderBuilder::new()
+///     .sequence(false)
+///     .quality(false)
+///     .from_path("data/phix.naf")
+///     .unwrap();
+/// for record in decoder.map(Result::unwrap) {
+///     println!(">{}", record.id.unwrap());
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct DecoderBuilder {
     buffer_size: usize,
@@ -182,8 +195,8 @@ impl Default for DecoderBuilder {
 ///
 /// The internal reader is shared and accessed non-sequentially to read the
 /// different block components of the archive. This means that the internal
-/// file heavily make use of [`seek`], so make sure that the actual object
-/// has a fast seeking implementation.
+/// file heavily make use of [`seek`](https://doc.rust-lang.org/std/io/trait.Seek.html#tymethod.seek),
+/// so make sure that the actual type has a fast seeking implementation.
 pub struct Decoder<'z, R: Read + Seek> {
     header: Header,
 
