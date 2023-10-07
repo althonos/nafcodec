@@ -1,9 +1,15 @@
 [package]
 name = "nafcodec"
 version = "0.1.0"
+authors = ["Martin Larralde <martin.larralde@embl.de>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT"
+description = " Rust coder/decoder for Nucleotide Archive Format (NAF) files."
+repository = "https://github.com/althonos/nafcodec"
+homepage = "https://github.com/althonos/nafcodec"
+readme = "README.md"
+keywords = ["nucleotide", "archive", "biology", "bioinformatics"]
+categories = ["science", "parser-implementations", "compression"]
 
 [dependencies]
 nom = "7.1.3"
