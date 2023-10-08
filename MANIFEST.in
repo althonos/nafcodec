@@ -10,7 +10,10 @@ include pyproject.toml
 recursive-include nafcodec      *.rs Cargo.toml README.md
 recursive-include nafcodec-py   *.rs Cargo.toml README.md *.py
 
-recursive-include nafcodec-py/nafcodec/tests/data *.py *.fna *.faa *.fastq *.naf
+include nafcodec-py/nafcodec/tests/data/*.naf
+exclude nafcodec-py/nafcodec/tests/data/*.fna
+exclude nafcodec-py/nafcodec/tests/data/*.faa
+exclude nafcodec-py/nafcodec/tests/data/*.fastq
 
 include .cargo/config.toml
 recursive-include crates *

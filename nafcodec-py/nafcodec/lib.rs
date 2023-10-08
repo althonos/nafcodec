@@ -126,7 +126,7 @@ impl Decoder {
     }
 }
 
-/// PyO3 bindings to ``nafcodec``, an encoder/decoder for NAF files.
+/// An encoder/decoder for Nucleotide Archive Format files.
 #[pymodule]
 #[pyo3(name = "lib")]
 pub fn init(_py: Python, m: &PyModule) -> PyResult<()> {
