@@ -1,0 +1,16 @@
+include setup.*
+include COPYING
+include CHANGELOG.md
+include README.md
+include pyproject.toml
+
+# exclude Cargo.toml
+# exclude Cargo.lock
+
+recursive-include nafcodec      *.rs Cargo.toml README.md
+recursive-include nafcodec-py   *.rs Cargo.toml README.md *.py
+
+recursive-include nafcodec-py/nafcodec/tests/data *.py *.fna *.faa *.fastq *.naf
+
+include .cargo/config.toml
+recursive-include crates *
