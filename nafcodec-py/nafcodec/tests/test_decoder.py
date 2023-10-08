@@ -20,6 +20,7 @@ class TestDecoder(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             decoder = nafcodec.Decoder("")
         
+    @unittest.skipIf(os.name == "nt", "Windows error codes differ")
     def test_error_isadirectory(self):
         with self.assertRaises(IsADirectoryError):
             decoder = nafcodec.Decoder(os.path.dirname(__file__))

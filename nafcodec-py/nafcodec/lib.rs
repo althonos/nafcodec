@@ -6,24 +6,22 @@ extern crate pyo3;
 use std::fs::File;
 use std::io::BufReader;
 use std::ops::DerefMut;
-use std::path::Path;
 
 use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::exceptions::PyIsADirectoryError;
 use pyo3::exceptions::PyOSError;
-use pyo3::exceptions::PyRuntimeError;
+
 use pyo3::exceptions::PyUnicodeError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 /// Convert a `nafcodec::error::Error` into a Python exception.
-fn convert_error(py: Python, error: nafcodec::error::Error, path: Option<&str>) -> PyErr {
+fn convert_error(_py: Python, error: nafcodec::error::Error, path: Option<&str>) -> PyErr {
     use nafcodec::error::Error;
-    use std::io::ErrorKind;
 
     match error {
-        Error::Utf8(utf8_error) => PyUnicodeError::new_err("failed to decode UTF-8 data"),
+        Error::Utf8(_utf8_error) => PyUnicodeError::new_err("failed to decode UTF-8 data"),
         Error::Nom(nom_error) => {
             PyValueError::new_err(format!("parser failed: {:?}", nom_error.code))
         }
@@ -31,14 +29,20 @@ fn convert_error(py: Python, error: nafcodec::error::Error, path: Option<&str>) 
             let desc = io_error.to_string();
             if let Some(p) = path.map(str::to_string) {
                 match io_error.raw_os_error() {
-                    Some(2) => PyFileNotFoundError::new_err((2, desc, p)),
+                    Some(2) => PyFileNotFoundError::new_err((p,)),
+                    #[cfg(target_os = "windows")]
+                    Some(3) => PyFileNotFoundError::new_err((p,)),
+                    #[cfg(not(target_os = "windows"))]
                     Some(21) => PyIsADirectoryError::new_err((p,)),
                     Some(code) => PyOSError::new_err((code, desc, p)),
                     None => PyOSError::new_err((desc,)),
                 }
             } else {
                 match io_error.raw_os_error() {
-                    Some(2) => PyFileNotFoundError::new_err((2, desc)),
+                    Some(2) => PyFileNotFoundError::new_err((desc,)),
+                    #[cfg(target_os = "windows")]
+                    Some(3) => PyFileNotFoundError::new_err((desc,)),
+                    #[cfg(not(target_os = "windows"))]
                     Some(21) => PyIsADirectoryError::new_err((desc,)),
                     Some(code) => PyOSError::new_err((code, desc)),
                     None => PyOSError::new_err((desc,)),
@@ -102,7 +106,7 @@ impl Decoder {
             .call_method1(pyo3::intern!(py, "fspath"), (path,))?
             .downcast::<PyString>()?;
         let fspath_str = fspath.to_str()?;
-        let mut decoder = nafcodec::Decoder::from_path(fspath_str)
+        let decoder = nafcodec::Decoder::from_path(fspath_str)
             .map_err(|e| convert_error(py, e, Some(fspath_str)))?;
         Ok(Decoder { decoder }.into())
     }
