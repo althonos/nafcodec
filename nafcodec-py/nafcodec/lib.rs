@@ -13,23 +13,37 @@ use std::ops::DerefMut;
 #[pyclass(module = "nafcodec.lib")]
 #[derive(Clone, Debug)]
 pub struct Record {
-    #[pyo3(get)]
-    id: PyObject,
-    #[pyo3(get)]
-    sequence: PyObject,
+    /// `str` or `None`: The record identifier.
+    #[pyo3(get, set)]
+    id: Option<Py<PyString>>,
+    /// `str` or `None`: The record comment.
+    #[pyo3(get, set)]
+    comment: Option<Py<PyString>>,
+    /// `str` or `None`: The record sequence.
+    #[pyo3(get, set)]
+    sequence: Option<Py<PyString>>,
+    /// `str` or `None`: The record quality.
+    #[pyo3(get, set)]
+    quality: Option<Py<PyString>>,
+    /// `str` or `None`: The record sequence length.
+    #[pyo3(get, set)]
+    length: Option<u64>,
 }
 
 impl pyo3::conversion::IntoPy<Record> for nafcodec::data::Record {
     fn into_py(self, py: Python<'_>) -> Record {
-        let id = match self.id {
-            Some(id) => PyString::new(py, &id).to_object(py),
-            None => py.None(),
-        };
-        let sequence = match self.sequence {
-            Some(seq) => PyString::new(py, &seq).to_object(py),
-            None => py.None(),
-        };
-        Record { id, sequence }
+        let id = self.id.map(|x| PyString::new(py, &x).into());
+        let sequence = self.sequence.map(|x| PyString::new(py, &x).into());
+        let comment = self.comment.map(|x| PyString::new(py, &x).into());
+        let quality = self.quality.map(|x| PyString::new(py, &x).into());
+        let length = self.length;
+        Record {
+            id,
+            sequence,
+            comment,
+            quality,
+            length,
+        }
     }
 }
 
