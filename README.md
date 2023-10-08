@@ -48,7 +48,7 @@ reading from any [`BufRead`](https://doc.rust-lang.org/nightly/std/io/trait.BufR
 [`Seek`](https://doc.rust-lang.org/nightly/std/io/trait.Seek.html) implementor:
 
 ```rust
-let mut decoder = nafcodec::Decoder::from_path("data/LuxC.naf")
+let mut decoder = nafcodec::Decoder::from_path("../data/LuxC.naf")
   .expect("failed to open nucleotide archive");
 
 for result in decoder {
@@ -65,7 +65,7 @@ even if they are present in the source archive:
 ```rust
 let mut decoder = nafcodec::DecoderBuilder::new()
     .quality(false)
-    .from_path("data/phix.naf")
+    .from_path("../data/phix.naf")
     .expect("failed to open nucleotide archive");
 
 // the archive contains quality strings...

@@ -37,7 +37,7 @@ type ZstdDecoder<'z, R> = BufReader<zstd::stream::read::Decoder<'z, BufReader<Io
 /// let decoder = nafcodec::DecoderBuilder::new()
 ///     .sequence(false)
 ///     .quality(false)
-///     .from_path("data/phix.naf")
+///     .from_path("../data/phix.naf")
 ///     .unwrap();
 /// for record in decoder.map(Result::unwrap) {
 ///     println!(">{}", record.id.unwrap());
@@ -380,7 +380,7 @@ mod tests {
     use super::*;
     use crate::data::MaskUnit;
 
-    const ARCHIVE: &[u8] = include_bytes!("../../data/LuxC.naf");
+    const ARCHIVE: &[u8] = include_bytes!("../../../data/LuxC.naf");
 
     #[test]
     fn error_empty() {
@@ -400,7 +400,7 @@ mod tests {
 
     #[test]
     fn masks() {
-        const ARCHIVE: &[u8] = include_bytes!("../../data/masked.naf");
+        const ARCHIVE: &[u8] = include_bytes!("../../../data/masked.naf");
         let decoder = Decoder::new(std::io::Cursor::new(ARCHIVE)).unwrap();
         let mut mask_reader = decoder.mask.unwrap();
         assert_eq!(

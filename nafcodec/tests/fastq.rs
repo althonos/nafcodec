@@ -3,7 +3,7 @@ use nafcodec::Decoder;
 
 #[test]
 fn decode() {
-    const ARCHIVE: &[u8] = include_bytes!("../data/phix.naf");
+    const ARCHIVE: &[u8] = include_bytes!("../../data/phix.naf");
 
     let c = std::io::Cursor::new(ARCHIVE);
     let mut decoder = Decoder::new(c).unwrap();
