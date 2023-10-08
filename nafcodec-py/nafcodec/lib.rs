@@ -10,6 +10,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::ops::DerefMut;
 
+/// A single sequence record stored in a Nucleotide Archive Format file.
 #[pyclass(module = "nafcodec.lib")]
 #[derive(Clone, Debug)]
 pub struct Record {
@@ -47,6 +48,7 @@ impl pyo3::conversion::IntoPy<Record> for nafcodec::data::Record {
     }
 }
 
+/// A streaming decoder to read a Nucleotide Archive Format file.
 #[pyclass(module = "nafcodec.lib")]
 pub struct Decoder {
     decoder: nafcodec::Decoder<'static, BufReader<File>>,
@@ -77,13 +79,6 @@ impl Decoder {
         }
     }
 }
-
-// impl From<nafcodec::Record> for Record {
-
-// }
-
-#[pymethods]
-impl Record {}
 
 /// PyO3 bindings to ``nafcodec``, an encoder/decoder for NAF files.
 #[pymodule]
