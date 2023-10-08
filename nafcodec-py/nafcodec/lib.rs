@@ -3,12 +3,50 @@
 extern crate nafcodec;
 extern crate pyo3;
 
-use pyo3::exceptions::PyRuntimeError;
-use pyo3::prelude::*;
-use pyo3::types::PyString;
 use std::fs::File;
 use std::io::BufReader;
 use std::ops::DerefMut;
+use std::path::Path;
+
+use pyo3::exceptions::PyFileNotFoundError;
+use pyo3::exceptions::PyIsADirectoryError;
+use pyo3::exceptions::PyOSError;
+use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::PyUnicodeError;
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
+use pyo3::types::PyString;
+
+/// Convert a `nafcodec::error::Error` into a Python exception.
+fn convert_error(py: Python, error: nafcodec::error::Error, path: Option<&str>) -> PyErr {
+    use nafcodec::error::Error;
+    use std::io::ErrorKind;
+
+    match error {
+        Error::Utf8(utf8_error) => PyUnicodeError::new_err("failed to decode UTF-8 data"),
+        Error::Nom(nom_error) => {
+            PyValueError::new_err(format!("parser failed: {:?}", nom_error.code))
+        }
+        Error::Io(io_error) => {
+            let desc = io_error.to_string();
+            if let Some(p) = path.map(str::to_string) {
+                match io_error.raw_os_error() {
+                    Some(2) => PyFileNotFoundError::new_err((2, desc, p)),
+                    Some(21) => PyIsADirectoryError::new_err((p,)),
+                    Some(code) => PyOSError::new_err((code, desc, p)),
+                    None => PyOSError::new_err((desc,)),
+                }
+            } else {
+                match io_error.raw_os_error() {
+                    Some(2) => PyFileNotFoundError::new_err((2, desc)),
+                    Some(21) => PyIsADirectoryError::new_err((desc,)),
+                    Some(code) => PyOSError::new_err((code, desc)),
+                    None => PyOSError::new_err((desc,)),
+                }
+            }
+        }
+    }
+}
 
 /// A single sequence record stored in a Nucleotide Archive Format file.
 #[pyclass(module = "nafcodec.lib")]
@@ -63,7 +101,9 @@ impl Decoder {
             .import("os")?
             .call_method1(pyo3::intern!(py, "fspath"), (path,))?
             .downcast::<PyString>()?;
-        let mut decoder = nafcodec::Decoder::from_path(fspath.to_str()?).unwrap();
+        let fspath_str = fspath.to_str()?;
+        let mut decoder = nafcodec::Decoder::from_path(fspath_str)
+            .map_err(|e| convert_error(py, e, Some(fspath_str)))?;
         Ok(Decoder { decoder }.into())
     }
 
@@ -72,10 +112,12 @@ impl Decoder {
     }
 
     fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Record>> {
-        match slf.deref_mut().decoder.next() {
-            None => Ok(None),
-            Some(Ok(record)) => Ok(Some(Python::with_gil(|py| record.into_py(py)))),
-            Some(Err(e)) => Err(PyRuntimeError::new_err("iterator failed")), // TODO
+        let result = slf.deref_mut().decoder.next().transpose();
+        let py = slf.py();
+        match result {
+            Ok(None) => Ok(None),
+            Ok(Some(record)) => Ok(Some(record.into_py(py))),
+            Err(e) => Err(convert_error(py, e, None)),
         }
     }
 }

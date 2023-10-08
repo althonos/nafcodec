@@ -16,6 +16,14 @@ except ImportError:
 
 class TestDecoder(unittest.TestCase):
 
+    def test_error_filenotfound(self):
+        with self.assertRaises(FileNotFoundError):
+            decoder = nafcodec.Decoder("")
+        
+    def test_error_isadirectory(self):
+        with self.assertRaises(IsADirectoryError):
+            decoder = nafcodec.Decoder(os.path.dirname(__file__))
+
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_fastq(self):
         path = files(data).joinpath("phix.naf")
