@@ -3,7 +3,7 @@
 *Rust coder/decoder for [Nucleotide Archive Format (NAF)](https://github.com/KirillKryukov/naf) files*.
 
 [![Actions](https://img.shields.io/github/actions/workflow/status/althonos/nafcodec/rust.yml?branch=main&style=flat-square&maxAge=600)](https://github.com/althonos/nafcodec/actions)
-[![Codecov](https://img.shields.io/codecov/c/gh/althonos/nafcodec/master.svg?style=flat-square&maxAge=600)](https://codecov.io/gh/althonos/nafcodec)
+[![Codecov](https://img.shields.io/codecov/c/gh/althonos/nafcodec/master.svg?style=flat-square&maxAge=600)](https://app.codecov.io/gh/althonos/nafcodec)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square&maxAge=2678400)](https://choosealicense.com/licenses/mit/)
 [![Source](https://img.shields.io/badge/source-GitHub-303030.svg?maxAge=2678400&style=flat-square)](https://github.com/althonos/nafcodec)
 [![Mirror](https://img.shields.io/badge/mirror-EMBL-009f4d?style=flat-square&maxAge=2678400)](https://git.embl.de/larralde/nafcodec/)
@@ -45,7 +45,8 @@ The following features are planned:
 
 ### 🔌 Usage
 
-Use `nafcodec::Decoder` to iterate over the contents of a Nucleotide Archive Format,
+Use [`nafcodec::Decoder`](https://docs.rs/nafcodec/latest/nafcodec/struct.Decoder.html) 
+to iterate over the contents of a Nucleotide Archive Format,
 reading from any [`BufRead`](https://doc.rust-lang.org/nightly/std/io/trait.BufRead.html) +
 [`Seek`](https://doc.rust-lang.org/nightly/std/io/trait.Seek.html) implementor:
 
@@ -59,10 +60,12 @@ for result in decoder {
 }
 ```
 
-All fields of the obtained `Record` are optional, and actually depend on the
-kind of data that was compressed. The decoder can be configured through
-a `DecoderBuilder` to ignore some fields to make decompression faster,
-even if they are present in the source archive:
+All fields of the obtained [`Record`](https://docs.rs/nafcodec/latest/nafcodec/data/struct.Record.html) 
+are optional, and actually depend on the kind of data that was compressed. 
+The decoder can be configured through a 
+[`DecoderBuilder`](https://docs.rs/nafcodec/latest/nafcodec/struct.DecoderBuilder.html) 
+to ignore some fields to make decompression faster, even if they are present 
+in the source archive:
 
 ```rust
 let mut decoder = nafcodec::DecoderBuilder::new()
@@ -86,11 +89,11 @@ for result in decoder {
 
 ### ⚠️ Issue Tracker
 
-Found a bug ? Have an enhancement request ? Head over to the [GitHub issue
-tracker](https://github.com/althonos/nafcodec/issues) if you need to report
-or ask something. If you are filing in on a bug, please include as much
-information as you can about the issue, and try to recreate the same bug
-in a simple, easily reproducible situation.
+Found a bug ? Have an enhancement request ? Head over to the 
+[GitHub issue tracker](https://github.com/althonos/nafcodec/issues) if you 
+need to report or ask something. If you are filing in on a bug, please include 
+as much information as you can about the issue, and try to recreate the same 
+bug in a simple, easily reproducible situation.
 
 <!-- ### 🏗️ Contributing
 

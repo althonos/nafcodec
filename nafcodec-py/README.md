@@ -3,7 +3,7 @@
 *Rust coder/decoder for [Nucleotide Archive Format (NAF)](https://github.com/KirillKryukov/naf) files*.
 
 [![Actions](https://img.shields.io/github/actions/workflow/status/althonos/nafcodec/python.yml?branch=main&logo=github&style=flat-square&maxAge=300)](https://github.com/althonos/nafcodec/actions)
-[![Coverage](https://img.shields.io/codecov/c/gh/althonos/nafcodec?logo=codecov&style=flat-square&maxAge=3600)](https://codecov.io/gh/althonos/nafcodec/)
+[![Coverage](https://img.shields.io/codecov/c/gh/althonos/nafcodec?logo=codecov&style=flat-square&maxAge=3600)](https://app.codecov.io/gh/althonos/nafcodec)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square&maxAge=2678400)](https://choosealicense.com/licenses/mit/)
 [![Docs](https://img.shields.io/readthedocs/nafcodec/latest?style=flat-square&maxAge=600)](https://nafcodec.readthedocs.io)
 [![Crate](https://img.shields.io/crates/v/nafcodec-py.svg?maxAge=600&style=flat-square)](https://crates.io/crates/nafcodec-py)
@@ -34,7 +34,7 @@ for parsing the binary format, and [`zstd`](https://crates.io/crates/zstd) for
 handling Zstandard decompression. It provides a complete API that allows 
 iterating over the contents of a NAF file.
 
-*This is the Python version, there is a [Rust crate](https://crates.io/crate/nafcodec) available as well.*
+*This is the Python version, there is a [Rust crate](https://crates.io/crates/nafcodec) available as well.*
 
 ### 📋 Features
 
