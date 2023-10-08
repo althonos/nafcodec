@@ -18,7 +18,7 @@ class TestDecoder(unittest.TestCase):
 
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_fastq(self):
-        path = os.fspath(files(data).joinpath("phix.naf"))
+        path = files(data).joinpath("phix.naf")
         decoder = nafcodec.Decoder(path)
         records = list(decoder)
         self.assertEqual(len(records), 42)
@@ -28,7 +28,7 @@ class TestDecoder(unittest.TestCase):
 
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_dna(self):
-        path = os.fspath(files(data).joinpath("NZ_AAEN01000029.naf"))
+        path = files(data).joinpath("NZ_AAEN01000029.naf")
         decoder = nafcodec.Decoder(path)
         records = list(decoder)
         self.assertEqual(len(records), 30)
@@ -41,7 +41,7 @@ class TestDecoder(unittest.TestCase):
 
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_protein(self):
-        path = os.fspath(files(data).joinpath("LuxC.naf"))
+        path = files(data).joinpath("LuxC.naf")
         decoder = nafcodec.Decoder(path)
         records = list(decoder)
         self.assertEqual(len(records), 12)
@@ -54,7 +54,7 @@ class TestDecoder(unittest.TestCase):
 
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_dna_masked(self):
-        path = os.fspath(files(data).joinpath("masked.naf"))
+        path = files(data).joinpath("masked.naf")
         decoder = nafcodec.Decoder(path)
         records = list(decoder)
         self.assertEqual(len(records), 2)

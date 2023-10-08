@@ -55,8 +55,13 @@ pub struct Decoder {
 #[pymethods]
 impl Decoder {
     #[new]
-    fn __init__(path: &PyString) -> PyResult<PyClassInitializer<Self>> {
-        let mut decoder = nafcodec::Decoder::from_path(path.to_str()?).unwrap();
+    fn __init__(path: &PyAny) -> PyResult<PyClassInitializer<Self>> {
+        let py = path.py();
+        let fspath = py
+            .import("os")?
+            .call_method1(pyo3::intern!(py, "fspath"), (path,))?
+            .downcast::<PyString>()?;
+        let mut decoder = nafcodec::Decoder::from_path(fspath.to_str()?).unwrap();
         Ok(Decoder { decoder }.into())
     }
 
