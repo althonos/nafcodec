@@ -28,6 +28,8 @@ and [`zstd`](https://crates.io/crates/zstd) for handling Zstandard
 decompression. It provides a complete API that allows iterating over
 the contents of a NAF file.
 
+*This is the Rust version, there is a [Python package](https://pypi.org/project/nafcodec) available as well.*
+
 ### 📋 Features
 
 - **streaming decoder**: The decoder is implemented using different readers
