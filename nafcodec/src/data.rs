@@ -1,26 +1,37 @@
 //! Common data types for this crate.
 
+// --- MaskUnit ----------------------------------------------------------------
+
+/// A single masked unit with associated status decoded from the mask block.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MaskUnit {
     Masked(u64),
     Unmasked(u64),
 }
 
-impl MaskUnit {
-    pub fn as_u64(&self) -> u64 {
-        match self {
-            MaskUnit::Masked(n) => *n,
-            MaskUnit::Unmasked(n) => *n,
-        }
-    }
-}
+// --- Record ------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+/// A single sequence record from a Nucleotide Archive Format file.
+///
+/// ## Quality
+///
+/// If set, the quality string length should be equal to the sequence
+/// string length, and to the record length. Since the data is compressed
+/// as raw text, it could contain other sort of annotation, such as RNA
+/// secondary structure in dot-bracket notation, or protein secondary
+/// structure.
+///
+#[derive(Debug, Clone, Default)]
 pub struct Record {
+    /// The record identifier (accession number).
     pub id: Option<String>,
+    /// The record comment (description).
     pub comment: Option<String>,
+    /// The record sequence.
     pub sequence: Option<String>,
+    /// The record quality string.
     pub quality: Option<String>,
+    /// The record sequence length.
     pub length: Option<u64>,
 }
 
@@ -52,7 +63,7 @@ impl SequenceType {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Copy)]
 pub struct Flags(u8);
 
 impl Flags {
@@ -93,7 +104,13 @@ impl Flags {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+/// The header section of a Nucleotide Archive Format file.
+///
+/// Headers are the only mandatory section of NAF files, and contain
+/// metadata about the stored sequences, as well as some metadata for
+/// the formatting the records during decompression.
+///
+#[derive(Debug, Clone)]
 pub struct Header {
     pub(crate) format_version: FormatVersion,
     pub(crate) sequence_type: SequenceType,
@@ -104,8 +121,8 @@ pub struct Header {
 }
 
 impl Header {
-    pub fn flags(&self) -> &Flags {
-        &self.flags
+    pub fn flags(&self) -> Flags {
+        self.flags
     }
 
     pub fn line_length(&self) -> u64 {

@@ -1,5 +1,5 @@
-use nafcodec::data::SequenceType;
 use nafcodec::Decoder;
+use nafcodec::SequenceType;
 
 #[test]
 fn decode() {

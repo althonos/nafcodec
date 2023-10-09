@@ -95,7 +95,7 @@ pub fn header(i: &[u8]) -> IResult<&[u8], Header> {
     let (i, f) = flags(i)?;
     let (i, sep) = name_separator(i)?;
     let (i, ll) = line_length(i)?;
-    let (i, nseq) = line_length(i)?;
+    let (i, nseq) = number_of_sequences(i)?;
     Ok((
         i,
         Header {

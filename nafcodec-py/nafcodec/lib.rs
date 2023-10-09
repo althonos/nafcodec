@@ -76,7 +76,7 @@ pub struct Record {
     length: Option<u64>,
 }
 
-impl pyo3::conversion::IntoPy<Record> for nafcodec::data::Record {
+impl pyo3::conversion::IntoPy<Record> for nafcodec::Record {
     fn into_py(self, py: Python<'_>) -> Record {
         let id = self.id.map(|x| PyString::new(py, &x).into());
         let sequence = self.sequence.map(|x| PyString::new(py, &x).into());

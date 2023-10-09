@@ -1,6 +1,6 @@
-use nafcodec::data::SequenceType;
 use nafcodec::Decoder;
 use nafcodec::DecoderBuilder;
+use nafcodec::SequenceType;
 
 const GENOME: &[u8] = include_bytes!("../../data/NZ_AAEN01000029.naf");
 const MASKED: &[u8] = include_bytes!("../../data/masked.naf");
