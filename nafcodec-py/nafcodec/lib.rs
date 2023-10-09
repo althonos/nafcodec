@@ -3,7 +3,10 @@
 extern crate nafcodec;
 extern crate pyo3;
 
-use std::fs::File;
+mod pyfile;
+use self::pyfile::PyFileRead;
+use self::pyfile::PyFileWrapper;
+
 use std::io::BufReader;
 use std::ops::DerefMut;
 
@@ -93,21 +96,35 @@ impl pyo3::conversion::IntoPy<Record> for nafcodec::data::Record {
 /// A streaming decoder to read a Nucleotide Archive Format file.
 #[pyclass(module = "nafcodec.lib")]
 pub struct Decoder {
-    decoder: nafcodec::Decoder<'static, BufReader<File>>,
+    decoder: nafcodec::Decoder<'static, BufReader<PyFileWrapper>>,
 }
 
 #[pymethods]
 impl Decoder {
     #[new]
-    fn __init__(path: &PyAny) -> PyResult<PyClassInitializer<Self>> {
-        let py = path.py();
-        let fspath = py
-            .import("os")?
-            .call_method1(pyo3::intern!(py, "fspath"), (path,))?
-            .downcast::<PyString>()?;
-        let fspath_str = fspath.to_str()?;
-        let decoder = nafcodec::Decoder::from_path(fspath_str)
-            .map_err(|e| convert_error(py, e, Some(fspath_str)))?;
+    fn __init__(file: &PyAny) -> PyResult<PyClassInitializer<Self>> {
+        let py = file.py();
+        let decoder = match PyFileRead::from_ref(file) {
+            Ok(handle) => {
+                let wrapper = PyFileWrapper::PyFile(handle);
+                nafcodec::Decoder::new(std::io::BufReader::new(wrapper))
+                    .map_err(|e| convert_error(py, e, None))?
+            }
+            Err(_e) => {
+                let path = py
+                    .import("os")?
+                    .call_method1(pyo3::intern!(py, "fspath"), (file,))?
+                    .downcast::<PyString>()?;
+                let path_str = path.to_str()?;
+                let reader = std::fs::File::open(path_str)
+                    .map_err(nafcodec::error::Error::Io)
+                    .map_err(|e| convert_error(py, e, Some(path_str)))
+                    .map(PyFileWrapper::File)?;
+                nafcodec::Decoder::new(std::io::BufReader::new(reader))
+                    .map_err(|e| convert_error(py, e, Some(path_str)))?
+            }
+        };
+
         Ok(Decoder { decoder }.into())
     }
 

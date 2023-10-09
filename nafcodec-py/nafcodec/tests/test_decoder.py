@@ -1,4 +1,5 @@
 import gzip
+import io
 import os
 import tempfile
 import unittest
@@ -14,21 +15,15 @@ try:
 except ImportError:
     files = None  # type: ignore
 
-class TestDecoder(unittest.TestCase):
 
-    def test_error_filenotfound(self):
-        with self.assertRaises(FileNotFoundError):
-            decoder = nafcodec.Decoder("")
-        
-    @unittest.skipIf(os.name == "nt", "Windows error codes differ")
-    def test_error_isadirectory(self):
-        with self.assertRaises(IsADirectoryError):
-            decoder = nafcodec.Decoder(os.path.dirname(__file__))
+class _TestDecoder(object):
+
+    def _get_decoder(self, filename):
+        raise NotImplementedError
 
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_fastq(self):
-        path = files(data).joinpath("phix.naf")
-        decoder = nafcodec.Decoder(path)
+        decoder = self._get_decoder("phix.naf")
         records = list(decoder)
         self.assertEqual(len(records), 42)
         self.assertEqual(records[0].id, "SRR1377138.1")
@@ -37,8 +32,7 @@ class TestDecoder(unittest.TestCase):
 
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_dna(self):
-        path = files(data).joinpath("NZ_AAEN01000029.naf")
-        decoder = nafcodec.Decoder(path)
+        decoder = self._get_decoder("NZ_AAEN01000029.naf")
         records = list(decoder)
         self.assertEqual(len(records), 30)
         self.assertEqual(records[0].id, "NZ_AAEN01000029.1")
@@ -50,8 +44,7 @@ class TestDecoder(unittest.TestCase):
 
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_protein(self):
-        path = files(data).joinpath("LuxC.naf")
-        decoder = nafcodec.Decoder(path)
+        decoder = self._get_decoder("LuxC.naf")
         records = list(decoder)
         self.assertEqual(len(records), 12)
         self.assertEqual(records[0].id, "sp|P19841|LUXC_PHOPO")
@@ -63,8 +56,7 @@ class TestDecoder(unittest.TestCase):
 
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_dna_masked(self):
-        path = files(data).joinpath("masked.naf")
-        decoder = nafcodec.Decoder(path)
+        decoder = self._get_decoder("masked.naf")
         records = list(decoder)
         self.assertEqual(len(records), 2)
         self.assertEqual(records[0].id, "test1")
@@ -73,3 +65,35 @@ class TestDecoder(unittest.TestCase):
         self.assertTrue(records[0].sequence[676:1311].isupper())
         self.assertTrue(records[0].sequence[1311:1350].islower())
         self.assertIs(records[0].quality, None)
+
+
+class TestDecoderHandle(_TestDecoder, unittest.TestCase):
+
+    def _get_decoder(self, filename):
+        with files(data).joinpath(filename).open("rb") as f:
+            content = f.read()
+        handle = io.BytesIO(content)
+        return nafcodec.Decoder(handle)
+
+
+class TestDecoderFile(_TestDecoder, unittest.TestCase):
+    
+    def setUp(self):
+        self.handle = None
+
+    def tearDown(self):
+        if self.handle is not None:
+            self.handle.close()
+
+    def _get_decoder(self, filename):
+        self.handle = files(data).joinpath(filename).open("rb")
+        return nafcodec.Decoder(self.handle)
+
+    def test_error_filenotfound(self):
+        with self.assertRaises(FileNotFoundError):
+            decoder = nafcodec.Decoder("")
+        
+    @unittest.skipIf(os.name == "nt", "Windows error codes differ")
+    def test_error_isadirectory(self):
+        with self.assertRaises(IsADirectoryError):
+            decoder = nafcodec.Decoder(os.path.dirname(__file__))
