@@ -45,7 +45,7 @@ The following features are planned:
 
 ### 🔌 Usage
 
-Use [`nafcodec::Decoder`](https://docs.rs/nafcodec/latest/nafcodec/struct.Decoder.html) 
+Use a [`Decoder`](https://docs.rs/nafcodec/latest/nafcodec/struct.Decoder.html) 
 to iterate over the contents of a Nucleotide Archive Format,
 reading from any [`BufRead`](https://doc.rust-lang.org/nightly/std/io/trait.BufRead.html) +
 [`Seek`](https://doc.rust-lang.org/nightly/std/io/trait.Seek.html) implementor:

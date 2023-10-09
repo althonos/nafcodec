@@ -100,7 +100,13 @@ impl Seek for PyFileRead {
                     if let Ok(n) = obj.extract::<u64>(py) {
                         Ok(n)
                     } else {
-                        unimplemented!()
+                        let ty = obj.as_ref(py).get_type().name()?.to_string();
+                        let msg = format!("expected int, found {}", ty);
+                        PyTypeError::new_err(msg).restore(py);
+                        Err(IoError::new(
+                            std::io::ErrorKind::Other,
+                            "fh.seek did not return position",
+                        ))
                     }
                 }
                 Err(e) => Err(IoError::new(std::io::ErrorKind::Unsupported, e.to_string())),

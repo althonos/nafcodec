@@ -41,11 +41,11 @@ iterating over the contents of a NAF file.
 - **streaming decoder**: The decoder is implemented using different readers
   each accessing a region of the compressed file, allowing to stream records
   without having to decode full blocks.
+- **file-like decoding**: Allow the decoder to read from a file-like object
+  instead of expecting a path.
 
 The following features are planned:
 
-- **file-like decoding**: Allow the decoder to read from a file-like object
-  instead of expecting a path.
 - **optional decoding**: Allow the decoder to skip the decoding of certains
   fields, such as ignoring quality strings when they are not needed.
 - **encoder**: Implement an encoder as well, using either in-memory buffers
@@ -53,8 +53,9 @@ The following features are planned:
 
 ### 🔌 Usage
 
-Use `nafcodec.Decoder` to iterate over the contents of a Nucleotide Archive Format,
-reading from the given path
+Use a `nafcodec.Decoder` to iterate over the contents of a Nucleotide Archive 
+Format, reading from the given [path-like](https://docs.python.org/3/glossary.html#term-path-like-object)
+or [file-like](https://docs.python.org/3/glossary.html#term-file-object) object:
 
 ```python
 import nafcodec
