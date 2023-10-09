@@ -13,7 +13,6 @@ use std::ops::DerefMut;
 use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::exceptions::PyIsADirectoryError;
 use pyo3::exceptions::PyOSError;
-
 use pyo3::exceptions::PyUnicodeError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -139,6 +138,17 @@ impl Decoder {
             Ok(None) => Ok(None),
             Ok(Some(record)) => Ok(Some(record.into_py(py))),
             Err(e) => Err(convert_error(py, e, None)),
+        }
+    }
+
+    #[getter]
+    fn sequence_type(slf: PyRef<'_, Self>) -> &str {
+        use nafcodec::SequenceType;
+        match slf.decoder.sequence_type() {
+            SequenceType::Dna => "dna",
+            SequenceType::Rna => "rna",
+            SequenceType::Protein => "protein",
+            SequenceType::Text => "text",
         }
     }
 }

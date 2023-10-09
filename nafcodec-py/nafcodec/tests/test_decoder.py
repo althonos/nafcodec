@@ -24,6 +24,7 @@ class _TestDecoder(object):
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_fastq(self):
         decoder = self._get_decoder("phix.naf")
+        self.assertEqual(decoder.sequence_type, "dna")
         records = list(decoder)
         self.assertEqual(len(records), 42)
         self.assertEqual(records[0].id, "SRR1377138.1")
@@ -33,6 +34,7 @@ class _TestDecoder(object):
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_dna(self):
         decoder = self._get_decoder("NZ_AAEN01000029.naf")
+        self.assertEqual(decoder.sequence_type, "dna")
         records = list(decoder)
         self.assertEqual(len(records), 30)
         self.assertEqual(records[0].id, "NZ_AAEN01000029.1")
@@ -45,6 +47,7 @@ class _TestDecoder(object):
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_protein(self):
         decoder = self._get_decoder("LuxC.naf")
+        self.assertEqual(decoder.sequence_type, "protein")
         records = list(decoder)
         self.assertEqual(len(records), 12)
         self.assertEqual(records[0].id, "sp|P19841|LUXC_PHOPO")
@@ -57,6 +60,7 @@ class _TestDecoder(object):
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_dna_masked(self):
         decoder = self._get_decoder("masked.naf")
+        self.assertEqual(decoder.sequence_type, "dna")
         records = list(decoder)
         self.assertEqual(len(records), 2)
         self.assertEqual(records[0].id, "test1")

@@ -262,6 +262,14 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
         &self.header
     }
 
+    /// Get the type of sequence in the archive being decoded.
+    ///
+    /// This method is a shortcut for `self.header().sequence_type()`.
+    #[inline]
+    pub fn sequence_type(&self) -> SequenceType {
+        self.header().sequence_type()
+    }
+
     /// Extract the internal reader.
     ///
     /// Note that the internal reader may have been advanced even if no
