@@ -284,16 +284,16 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
         let id = self
             .ids
             .as_mut()
-            .map(|r| r.next())
+            .and_then(|r| r.next())
             .transpose()?
             .map(|id| id.into_string().expect("TODO"));
         let comment = self
             .com
             .as_mut()
-            .map(|r| r.next())
+            .and_then(|r| r.next())
             .transpose()?
             .map(|com| com.into_string().expect("TODO"));
-        let length = self.len.as_mut().map(|r| r.next()).transpose()?;
+        let length = self.len.as_mut().and_then(|r| r.next()).transpose()?;
 
         let mut sequence = None;
         let mut quality = None;

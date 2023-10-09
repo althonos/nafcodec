@@ -15,11 +15,18 @@ impl<R: BufRead> CStringReader<R> {
     pub fn new(reader: R) -> Self {
         Self { reader }
     }
+}
 
-    pub fn next(&mut self) -> Result<CString, std::io::Error> {
+impl<R: BufRead> Iterator for CStringReader<R> {
+    type Item = Result<CString, std::io::Error>;
+    fn next(&mut self) -> Option<Self::Item> {
         let mut buffer = Vec::new();
-        self.reader.read_until(0, &mut buffer)?;
-        Ok(CString::from_vec_with_nul(buffer).expect("buffer should contain a single nul byte"))
+        match self.reader.read_until(0, &mut buffer) {
+            Ok(0) => None,
+            Err(e) => Some(Err(e)),
+            Ok(_) => Some(Ok(CString::from_vec_with_nul(buffer)
+                .expect("buffer should contain a single nul byte"))),
+        }
     }
 }
 
@@ -34,21 +41,29 @@ impl<R: BufRead> LengthReader<R> {
     pub fn new(reader: R) -> Self {
         Self { reader }
     }
+}
 
-    pub fn next(&mut self) -> Result<u64, std::io::Error> {
+impl<R: BufRead> Iterator for LengthReader<R> {
+    type Item = Result<u64, std::io::Error>;
+    fn next(&mut self) -> Option<Self::Item> {
         let mut n = 0u64;
         let mut x = u32::MAX;
         let mut buffer = [0u8; 4];
 
         while x == u32::MAX {
-            self.reader.read_exact(&mut buffer[..])?;
+            if let Err(e) = self.reader.read_exact(&mut buffer[..]) {
+                match e.kind() {
+                    std::io::ErrorKind::UnexpectedEof => return None,
+                    _ => return Some(Err(e)),
+                }
+            }
             x = nom::number::complete::le_u32::<&[u8], nom::error::Error<&[u8]>>(&buffer[..])
                 .unwrap()
                 .1;
             n += x as u64;
         }
 
-        Ok(n)
+        Some(Ok(n))
     }
 }
 
