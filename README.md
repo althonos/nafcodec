@@ -52,7 +52,7 @@ reading from any [`BufRead`](https://doc.rust-lang.org/nightly/std/io/trait.BufR
 
 ```rust
 let mut decoder = nafcodec::Decoder::from_path("../data/LuxC.naf")
-  .expect("failed to open nucleotide archive");
+    .expect("failed to open nucleotide archive");
 
 for result in decoder {
     let record = result.unwrap();

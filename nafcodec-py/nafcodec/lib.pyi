@@ -1,5 +1,5 @@
 import os
-from typing import Union, Iterator, Optional, BytesIO
+from typing import Union, Iterator, Optional, BinaryIO
 
 __version__: str
 __author__: str
@@ -12,6 +12,6 @@ class Record:
     length: Optional[int]
 
 class Decoder(Iterator[Record]):
-    def __init__(self, file: Union[os.PathLike[str], BytesIO]) -> None: ...
+    def __init__(self, file: Union[os.PathLike[str], BinaryIO]) -> None: ...
     def __iter__(self) -> Decoder: ...
     def __next__(self) -> Record: ...
