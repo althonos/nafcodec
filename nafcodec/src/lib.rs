@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(feature = "nightly", feature(seek_stream_len))]
 
 mod decoder;
 
