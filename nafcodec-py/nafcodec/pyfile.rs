@@ -7,7 +7,9 @@ use std::io::SeekFrom;
 use pyo3::exceptions::PyOSError;
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
+use pyo3::types::PyByteArray;
 use pyo3::types::PyBytes;
+use pyo3::types::PyLong;
 use pyo3::PyObject;
 
 // ---------------------------------------------------------------------------
@@ -39,15 +41,32 @@ macro_rules! transmute_file_error {
 #[derive(Debug)]
 pub struct PyFileRead {
     file: PyObject,
+    has_readinto: bool,
 }
 
 impl PyFileRead {
     pub fn from_ref<'p>(file: &'p PyAny) -> PyResult<PyFileRead> {
         let py = file.py();
+
+        if file.hasattr("readinto")? {
+            let b = PyByteArray::new(py, &[]);
+            if let Ok(res) = file.call_method1("readinto", (b,)) {
+                if res.downcast::<PyLong>().is_ok() {
+                    return Ok({
+                        PyFileRead {
+                            file: file.to_object(py),
+                            has_readinto: true,
+                        }
+                    });
+                }
+            }
+        }
+
         let res = file.call_method1("read", (0,))?;
         if res.downcast::<PyBytes>().is_ok() {
             Ok(PyFileRead {
                 file: file.to_object(py),
+                has_readinto: false,
             })
         } else {
             let ty = res.get_type().name()?.to_string();
@@ -57,12 +76,13 @@ impl PyFileRead {
             )))
         }
     }
-}
 
-impl Read for PyFileRead {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
+    fn read_read(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
         Python::with_gil(|py| {
-            match self.file.call_method1(py, "read", (buf.len(),)) {
+            match self
+                .file
+                .call_method1(py, pyo3::intern!(py, "read"), (buf.len(),))
+            {
                 Ok(obj) => {
                     // Check `fh.read` returned bytes, else raise a `TypeError`.
                     if let Ok(bytes) = obj.extract::<&PyBytes>(py) {
@@ -84,6 +104,49 @@ impl Read for PyFileRead {
                 }
             }
         })
+    }
+
+    fn read_readinto(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
+        Python::with_gil(|py| {
+            let memview = unsafe {
+                let m = pyo3::ffi::PyMemoryView_FromMemory(
+                    buf.as_mut_ptr() as *mut i8,
+                    buf.len() as isize,
+                    pyo3::ffi::PyBUF_WRITE,
+                );
+                PyObject::from_owned_ptr_or_err(py, m)?
+            };
+            match self
+                .file
+                .call_method1(py, pyo3::intern!(py, "readinto"), (memview,))
+            {
+                Ok(n) => match n.extract::<usize>(py) {
+                    Ok(n) => Ok(n),
+                    Err(e) => {
+                        let ty = n.as_ref(py).get_type().name()?.to_string();
+                        let msg = format!("expected int, found {}", ty);
+                        PyTypeError::new_err(msg).restore(py);
+                        Err(IoError::new(
+                            std::io::ErrorKind::Other,
+                            "fh.readinto did not return int",
+                        ))
+                    }
+                },
+                Err(e) => {
+                    transmute_file_error!(self, e, "readinto method failed", py)
+                }
+            }
+        })
+    }
+}
+
+impl Read for PyFileRead {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
+        if self.has_readinto {
+            self.read_readinto(buf)
+        } else {
+            self.read_read(buf)
+        }
     }
 }
 
