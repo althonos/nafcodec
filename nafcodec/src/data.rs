@@ -38,18 +38,18 @@ pub struct Record {
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum FormatVersion {
     #[default]
-    V1,
-    V2,
+    V1 = 1,
+    V2 = 2,
 }
 
 /// The type of sequence stored in a Nucleotide Archive Format file.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum SequenceType {
     #[default]
-    Dna,
-    Rna,
-    Protein,
-    Text,
+    Dna = 0,
+    Rna = 1,
+    Protein = 2,
+    Text = 3,
 }
 
 impl SequenceType {
@@ -63,7 +63,7 @@ impl SequenceType {
     }
 }
 
-#[derive(Debug, Clone, Default, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Flags(u8);
 
 impl Flags {
@@ -101,6 +101,18 @@ impl Flags {
 
     pub fn has_extended_format(&self) -> bool {
         (self.0 & 0x80) != 0
+    }
+}
+
+impl Default for Flags {
+    fn default() -> Self {
+        Self::new(0)
+    }
+}
+
+impl Into<u8> for Flags {
+    fn into(self) -> u8 {
+        self.0
     }
 }
 
@@ -143,5 +155,18 @@ impl Header {
 
     pub fn format_version(&self) -> FormatVersion {
         self.format_version
+    }
+}
+
+impl Default for Header {
+    fn default() -> Self {
+        Header {
+            format_version: FormatVersion::V2,
+            sequence_type: SequenceType::Dna,
+            flags: Flags::default(),
+            name_separator: ' ',
+            line_length: 60,
+            number_of_sequences: 0,
+        }
     }
 }
