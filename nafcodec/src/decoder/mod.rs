@@ -14,20 +14,15 @@ mod reader;
 
 use self::ioslice::IoSlice;
 use self::reader::*;
+use super::Rc;
 use crate::data::Header;
 use crate::data::MaskUnit;
 use crate::data::Record;
 use crate::data::SequenceType;
 use crate::error::Error;
 
-/// The reference counter type used to share the stream.
-#[cfg(feature = "arc")]
-type Rc<T> = std::sync::Arc<T>;
-#[cfg(not(feature = "arc"))]
-type Rc<T> = std::rc::Rc<T>;
-
 /// The wrapper used to decode Zstandard stream.
-type ZstdDecoder<'z, R> = BufReader<zstd::stream::read::Decoder<'z, BufReader<IoSlice<R>>>>;
+type ZstdDecoder<'z, R> = BufReader<zstd::Decoder<'z, BufReader<IoSlice<R>>>>;
 
 /// A builder to configure and initialize a [`Decoder`](./struct.Decoder.html).
 ///

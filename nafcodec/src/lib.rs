@@ -4,6 +4,7 @@
 
 mod data;
 mod decoder;
+mod encoder;
 
 pub mod error;
 
@@ -14,3 +15,10 @@ pub use self::data::Record;
 pub use self::data::SequenceType;
 pub use self::decoder::Decoder;
 pub use self::decoder::DecoderBuilder;
+pub use self::encoder::Encoder;
+
+/// The reference counter type used to share the stream.
+#[cfg(feature = "arc")]
+type Rc<T> = std::sync::Arc<T>;
+#[cfg(not(feature = "arc"))]
+type Rc<T> = std::rc::Rc<T>;
