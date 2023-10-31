@@ -16,8 +16,11 @@ nom = "7.1.3"
 [dependencies.zstd]
 version = "0.12.4"
 features = ["experimental"]
+[dependencies.tempfile]
+version = "3.8.1"
+optional = true
 
 [features]
+default = ["tempfile"]
 arc = []
-default = []
 nightly = []

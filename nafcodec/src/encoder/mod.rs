@@ -1,39 +1,21 @@
+use std::fs::File;
 use std::io::Error as IoError;
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::io::Write;
+
+mod counter;
+mod storage;
+
+use self::counter::WriteCounter;
+pub use self::storage::Memory;
+pub use self::storage::Storage;
 
 use super::Rc;
 use crate::data::Flags;
 use crate::data::Header;
 use crate::data::Record;
 use crate::data::SequenceType;
-
-#[derive(Debug, Clone)]
-struct WriteCounter<W: Write> {
-    w: W,
-    n: usize,
-}
-
-impl<W: Write> WriteCounter<W> {
-    fn new(w: W) -> Self {
-        Self { w, n: 0 }
-    }
-}
-
-impl<W: Write> Write for WriteCounter<W> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, IoError> {
-        match self.w.write(buf) {
-            Err(e) => Err(e),
-            Ok(n) => {
-                self.n += n;
-                Ok(n)
-            }
-        }
-    }
-
-    fn flush(&mut self) -> Result<(), IoError> {
-        self.w.flush()
-    }
-}
 
 fn write_variable_length<W: Write>(mut n: u64, mut w: W) -> Result<(), IoError> {
     let mut basis = 1;
@@ -59,35 +41,53 @@ fn write_length<W: Write>(mut l: u64, mut w: W) -> Result<(), IoError> {
     w.write_all(&n.to_le_bytes()[..])
 }
 
-pub struct Encoder<'z> {
+pub struct Encoder<'z, S: Storage> {
     header: Header,
+    storage: S,
 
-    ids: WriteCounter<zstd::Encoder<'z, Vec<u8>>>,
-    seqs: WriteCounter<zstd::Encoder<'z, Vec<u8>>>,
-    lens: WriteCounter<zstd::Encoder<'z, Vec<u8>>>,
+    ids: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
+    // com: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
+    len: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
+    seq: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
+    // qual: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
+    // mask: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
 }
 
-impl Encoder<'_> {
-    pub fn new(sequence_type: SequenceType) -> Self {
+impl Encoder<'_, Memory> {
+    /// Create a new encoder for the given sequence type using memory buffers.
+    ///
+    /// Use `Encoder::with_storage` to specificy a different storage type,
+    /// such as a `TempDir` to store the temporary compressed blocks into
+    /// a temporary directory.
+    pub fn new(sequence_type: SequenceType) -> Result<Self, IoError> {
+        Self::with_storage(sequence_type, Default::default())
+    }
+}
+
+impl<S: Storage> Encoder<'_, S> {
+    pub fn with_storage(sequence_type: SequenceType, storage: S) -> Result<Self, IoError> {
         let mut header = Header::default();
         header.sequence_type = sequence_type;
         header.flags = Flags::new(0x02 | 0x08 | 0x20); // sequence | lenghts | ids
 
-        let mut ids = zstd::Encoder::new(Vec::new(), 0).unwrap();
+        let mut ids = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
         ids.include_magicbytes(false).unwrap();
-        let mut seqs = zstd::Encoder::new(Vec::new(), 0).unwrap();
+        let mut seqs = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
         seqs.include_magicbytes(false).unwrap();
-        let mut lens = zstd::Encoder::new(Vec::new(), 0).unwrap();
+        let mut lens = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
         lens.include_magicbytes(false).unwrap();
 
-        Encoder {
+        Ok(Encoder {
             header,
+            storage,
             ids: WriteCounter::new(ids),
-            seqs: WriteCounter::new(seqs),
-            lens: WriteCounter::new(lens),
-        }
+            seq: WriteCounter::new(seqs),
+            len: WriteCounter::new(lens),
+        })
     }
+}
 
+impl<S: Storage> Encoder<'_, S> {
     pub fn push(&mut self, record: &Record) -> Result<(), IoError> {
         if let Some(id) = record.id.as_ref() {
             self.ids.write_all(id.as_bytes())?;
@@ -98,9 +98,9 @@ impl Encoder<'_> {
 
         if let Some(seq) = record.sequence.as_ref() {
             let length = seq.len();
-            write_length(length as u64, &mut self.lens)?;
-            self.seqs.write_all(seq.as_bytes())?;
-            self.seqs.flush()?;
+            write_length(length as u64, &mut self.len)?;
+            self.seq.write_all(seq.as_bytes())?;
+            self.seq.flush()?;
         } else {
             panic!("missing sequence")
         }
@@ -110,13 +110,16 @@ impl Encoder<'_> {
     }
 
     pub fn write<W: Write>(self, mut file: W) -> Result<(), IoError> {
-        let og_ids = self.ids.n as u64;
-        let og_lens = self.lens.n as u64;
-        let og_seqs = self.seqs.n as u64;
+        let og_ids = self.ids.len() as u64;
+        let og_lens = self.len.len() as u64;
+        let og_seqs = self.seq.len() as u64;
 
-        let ids_buffer = self.ids.w.finish()?;
-        let lens_buffer = self.lens.w.finish()?;
-        let seqs_buffer = self.seqs.w.finish()?;
+        let mut ids_buffer = self.ids.into_inner().finish()?;
+        ids_buffer.flush()?;
+        let mut len_buffer = self.len.into_inner().finish()?;
+        len_buffer.flush()?;
+        let mut seq_buffer = self.seq.into_inner().finish()?;
+        seq_buffer.flush()?;
 
         // --- header ---
         file.write_all(&[0x01, 0xF9, 0xEC])?; // format descriptor
@@ -131,18 +134,18 @@ impl Encoder<'_> {
 
         // -- ids ---
         write_variable_length(og_ids, &mut file)?;
-        write_variable_length(ids_buffer.len() as u64, &mut file)?;
-        file.write_all(ids_buffer.as_slice())?;
+        write_variable_length(self.storage.buffer_length(&ids_buffer)? as u64, &mut file)?;
+        self.storage.write_buffer(ids_buffer, &mut file)?;
 
         // -- lengths --
         write_variable_length(og_lens, &mut file)?;
-        write_variable_length(lens_buffer.len() as u64, &mut file)?;
-        file.write_all(lens_buffer.as_slice())?;
+        write_variable_length(self.storage.buffer_length(&len_buffer)? as u64, &mut file)?;
+        self.storage.write_buffer(len_buffer, &mut file)?;
 
         // -- seq --
         write_variable_length(og_seqs, &mut file)?;
-        write_variable_length(seqs_buffer.len() as u64, &mut file)?;
-        file.write_all(seqs_buffer.as_slice())?;
+        write_variable_length(self.storage.buffer_length(&seq_buffer)? as u64, &mut file)?;
+        self.storage.write_buffer(seq_buffer, &mut file)?;
 
         file.flush()?;
         Ok(())
@@ -154,8 +157,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn encoder() {
-        let mut encoder = Encoder::new(SequenceType::Protein);
+    fn encoder_memory() {
+        let mut encoder = Encoder::<Memory>::new(SequenceType::Protein).unwrap();
         let mut r1 = Record {
             id: Some("r1".into()),
             sequence: Some("MYYK".into()),
@@ -170,7 +173,30 @@ mod tests {
         };
         encoder.push(&r2).unwrap();
 
-        let f = std::fs::File::create("/tmp/test.naf").unwrap();
+        let f = std::fs::File::create("/tmp/test1.naf").unwrap();
+        encoder.write(f).unwrap();
+    }
+
+    #[cfg(feature = "tempfile")]
+    #[test]
+    fn encoder_tempfile() {
+        let tempdir = tempfile::TempDir::new().unwrap();
+        let mut encoder = Encoder::with_storage(SequenceType::Protein, tempdir).unwrap();
+        let mut r1 = Record {
+            id: Some("r1".into()),
+            sequence: Some("MYYK".into()),
+            ..Default::default()
+        };
+        encoder.push(&r1).unwrap();
+
+        let mut r2 = Record {
+            id: Some("r2".into()),
+            sequence: Some("MTTE".into()),
+            ..Default::default()
+        };
+        encoder.push(&r2).unwrap();
+
+        let f = std::fs::File::create("/tmp/test2.naf").unwrap();
         encoder.write(f).unwrap();
     }
 }
