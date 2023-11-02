@@ -48,9 +48,16 @@ impl PyFileRead {
     pub fn from_ref<'p>(file: &'p PyAny) -> PyResult<PyFileRead> {
         let py = file.py();
 
-        if file.hasattr("readinto")? {
+        let implementation = py
+            .import(pyo3::intern!(py, "sys"))?
+            .getattr(pyo3::intern!(py, "implementation"))?
+            .getattr(pyo3::intern!(py, "name"))?;
+
+        if file.hasattr(pyo3::intern!(py, "readinto"))?
+            && implementation.eq(pyo3::intern!(py, "cpython"))?
+        {
             let b = PyByteArray::new(py, &[]);
-            if let Ok(res) = file.call_method1("readinto", (b,)) {
+            if let Ok(res) = file.call_method1(pyo3::intern!(py, "readinto"), (b,)) {
                 if res.downcast::<PyLong>().is_ok() {
                     return Ok({
                         PyFileRead {
@@ -62,7 +69,7 @@ impl PyFileRead {
             }
         }
 
-        let res = file.call_method1("read", (0,))?;
+        let res = file.call_method1(pyo3::intern!(py, "read"), (0,))?;
         if res.downcast::<PyBytes>().is_ok() {
             Ok(PyFileRead {
                 file: file.to_object(py),
