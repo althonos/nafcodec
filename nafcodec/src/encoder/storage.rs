@@ -31,6 +31,7 @@ impl Storage for tempfile::TempDir {
         tempfile::tempfile_in(self.path())
     }
     fn buffer_length(&self, buffer: &Self::Buffer) -> Result<u64, IoError> {
+        buffer.sync_all()?;
         Ok(buffer.metadata()?.len())
     }
     fn write_buffer<W: Write>(
