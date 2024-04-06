@@ -2,6 +2,9 @@
 
 // --- MaskUnit ----------------------------------------------------------------
 
+use std::ops::BitAnd;
+use std::ops::BitOr;
+
 /// A single masked unit with associated status decoded from the mask block.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MaskUnit {
@@ -63,6 +66,39 @@ impl SequenceType {
     }
 }
 
+#[repr(u8)]
+pub enum Flag {
+    Quality = 0x1,
+    Sequence = 0x2,
+    Mask = 0x4,
+    Lengths = 0x8,
+    Comments = 0x10,
+    Ids = 0x20,
+    Title = 0x40,
+    Extended = 0x80,
+}
+
+impl BitAnd<Flag> for u8 {
+    type Output = u8;
+    fn bitand(self, rhs: Flag) -> Self::Output {
+        self.bitand(rhs as u8)
+    }
+}
+
+impl BitOr<Flag> for Flag {
+    type Output = u8;
+    fn bitor(self, rhs: Flag) -> Self::Output {
+        (self as u8).bitor(rhs)
+    }
+}
+
+impl BitOr<Flag> for u8 {
+    type Output = u8;
+    fn bitor(self, rhs: Flag) -> Self::Output {
+        self.bitor(rhs as u8)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Flags(u8);
 
@@ -72,35 +108,35 @@ impl Flags {
     }
 
     pub fn has_quality(&self) -> bool {
-        (self.0 & 0x1) != 0
+        (self.0 & Flag::Quality) != 0
     }
 
     pub fn has_sequence(&self) -> bool {
-        (self.0 & 0x2) != 0
+        (self.0 & Flag::Sequence) != 0
     }
 
     pub fn has_mask(&self) -> bool {
-        (self.0 & 0x4) != 0
+        (self.0 & Flag::Mask) != 0
     }
 
     pub fn has_lengths(&self) -> bool {
-        (self.0 & 0x8) != 0
+        (self.0 & Flag::Lengths) != 0
     }
 
     pub fn has_comments(&self) -> bool {
-        (self.0 & 0x10) != 0
+        (self.0 & Flag::Comments) != 0
     }
 
     pub fn has_ids(&self) -> bool {
-        (self.0 & 0x20) != 0
+        (self.0 & Flag::Ids) != 0
     }
 
     pub fn has_title(&self) -> bool {
-        (self.0 & 0x40) != 0
+        (self.0 & Flag::Title) != 0
     }
 
     pub fn has_extended_format(&self) -> bool {
-        (self.0 & 0x80) != 0
+        (self.0 & Flag::Extended) != 0
     }
 }
 
