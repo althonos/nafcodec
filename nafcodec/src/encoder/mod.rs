@@ -6,6 +6,7 @@ use std::io::Write;
 
 mod counter;
 mod storage;
+mod writer;
 
 use self::counter::WriteCounter;
 pub use self::storage::Memory;
@@ -42,6 +43,50 @@ fn write_length<W: Write>(mut l: u64, mut w: W) -> Result<(), IoError> {
     w.write_all(&n.to_le_bytes()[..])
 }
 
+/// A builder to configure and initialize an [`Encoder`].
+#[derive(Debug, Clone)]
+pub struct EncoderBuilder {
+    sequence_type: SequenceType,
+    sequence: bool,
+    quality: bool,
+}
+
+impl EncoderBuilder {
+    /// Create a new encoder builder with default parameters.
+    pub fn new(sequence_type: SequenceType) -> Self {
+        Self {
+            sequence_type,
+            quality: false,
+            sequence: false,
+        }
+    }
+
+    /// Build an encoder with this configuration that uses the given storage.
+    pub fn from_storage<'z, S: Storage>(&self, storage: S) -> Result<Encoder<'z, S>, IoError> {
+        let mut header = Header::default();
+        header.sequence_type = self.sequence_type;
+        header.flags = Flags::new(Flag::Sequence | Flag::Lengths | Flag::Comments | Flag::Ids); // sequence | lenghts | ids
+
+        let mut ids = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
+        ids.include_magicbytes(false).unwrap();
+        let mut com = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
+        com.include_magicbytes(false).unwrap();
+        let mut seqs = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
+        seqs.include_magicbytes(false).unwrap();
+        let mut lens = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
+        lens.include_magicbytes(false).unwrap();
+
+        Ok(Encoder {
+            header,
+            storage,
+            ids: WriteCounter::new(ids),
+            com: WriteCounter::new(com),
+            seq: WriteCounter::new(seqs),
+            len: WriteCounter::new(lens),
+        })
+    }
+}
+
 pub struct Encoder<'z, S: Storage> {
     header: Header,
     storage: S,
@@ -67,27 +112,7 @@ impl Encoder<'_, Memory> {
 
 impl<S: Storage> Encoder<'_, S> {
     pub fn with_storage(sequence_type: SequenceType, storage: S) -> Result<Self, IoError> {
-        let mut header = Header::default();
-        header.sequence_type = sequence_type;
-        header.flags = Flags::new(Flag::Sequence | Flag::Lengths | Flag::Comments | Flag::Ids); // sequence | lenghts | ids
-
-        let mut ids = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
-        ids.include_magicbytes(false).unwrap();
-        let mut com = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
-        com.include_magicbytes(false).unwrap();
-        let mut seqs = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
-        seqs.include_magicbytes(false).unwrap();
-        let mut lens = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
-        lens.include_magicbytes(false).unwrap();
-
-        Ok(Encoder {
-            header,
-            storage,
-            ids: WriteCounter::new(ids),
-            com: WriteCounter::new(com),
-            seq: WriteCounter::new(seqs),
-            len: WriteCounter::new(lens),
-        })
+        EncoderBuilder::new(sequence_type).from_storage(storage)
     }
 }
 
