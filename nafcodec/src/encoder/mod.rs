@@ -12,6 +12,7 @@ pub use self::storage::Memory;
 pub use self::storage::Storage;
 
 use super::Rc;
+use crate::data::Flag;
 use crate::data::Flags;
 use crate::data::Header;
 use crate::data::Record;
@@ -46,7 +47,7 @@ pub struct Encoder<'z, S: Storage> {
     storage: S,
 
     ids: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
-    // com: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
+    com: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     len: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     seq: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     // qual: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
@@ -68,10 +69,12 @@ impl<S: Storage> Encoder<'_, S> {
     pub fn with_storage(sequence_type: SequenceType, storage: S) -> Result<Self, IoError> {
         let mut header = Header::default();
         header.sequence_type = sequence_type;
-        header.flags = Flags::new(0x02 | 0x08 | 0x20); // sequence | lenghts | ids
+        header.flags = Flags::new(Flag::Sequence | Flag::Lengths | Flag::Comments | Flag::Ids); // sequence | lenghts | ids
 
         let mut ids = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
         ids.include_magicbytes(false).unwrap();
+        let mut com = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
+        com.include_magicbytes(false).unwrap();
         let mut seqs = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
         seqs.include_magicbytes(false).unwrap();
         let mut lens = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
@@ -81,6 +84,7 @@ impl<S: Storage> Encoder<'_, S> {
             header,
             storage,
             ids: WriteCounter::new(ids),
+            com: WriteCounter::new(com),
             seq: WriteCounter::new(seqs),
             len: WriteCounter::new(lens),
         })
@@ -94,6 +98,13 @@ impl<S: Storage> Encoder<'_, S> {
             self.ids.write_all(b"\0")?;
         } else {
             panic!("missing ids")
+        }
+
+        if let Some(com) = record.comment.as_ref() {
+            self.com.write_all(com.as_bytes())?;
+            self.com.write_all(b"\0")?;
+        } else {
+            panic!("missing comment");
         }
 
         if let Some(seq) = record.sequence.as_ref() {
@@ -161,6 +172,7 @@ mod tests {
         let mut encoder = Encoder::<Memory>::new(SequenceType::Protein).unwrap();
         let mut r1 = Record {
             id: Some("r1".into()),
+            comment: Some("record 1".into()),
             sequence: Some("MYYK".into()),
             ..Default::default()
         };
@@ -168,6 +180,7 @@ mod tests {
 
         let mut r2 = Record {
             id: Some("r2".into()),
+            comment: Some("record 2".into()),
             sequence: Some("MTTE".into()),
             ..Default::default()
         };
@@ -184,6 +197,7 @@ mod tests {
         let mut encoder = Encoder::with_storage(SequenceType::Protein, tempdir).unwrap();
         let mut r1 = Record {
             id: Some("r1".into()),
+            comment: Some("record 1".into()),
             sequence: Some("MYYK".into()),
             ..Default::default()
         };
@@ -191,6 +205,7 @@ mod tests {
 
         let mut r2 = Record {
             id: Some("r2".into()),
+            comment: Some("record 2".into()),
             sequence: Some("MTTE".into()),
             ..Default::default()
         };
