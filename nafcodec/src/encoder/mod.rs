@@ -19,6 +19,7 @@ use crate::data::Flags;
 use crate::data::Header;
 use crate::data::Record;
 use crate::data::SequenceType;
+use crate::FormatVersion;
 
 fn write_variable_length<W: Write>(mut n: u64, mut w: W) -> Result<(), IoError> {
     let mut basis = 1;
@@ -65,7 +66,14 @@ impl EncoderBuilder {
     /// Build an encoder with this configuration that uses the given storage.
     pub fn from_storage<'z, S: Storage>(&self, storage: S) -> Result<Encoder<'z, S>, IoError> {
         let mut header = Header::default();
+
         header.sequence_type = self.sequence_type;
+        if self.sequence_type == SequenceType::Dna {
+            header.format_version = FormatVersion::V1;
+        } else {
+            header.format_version = FormatVersion::V2;
+        }
+
         header.flags = Flags::new(Flag::Sequence | Flag::Lengths | Flag::Comments | Flag::Ids); // sequence | lenghts | ids
 
         let mut ids = zstd::Encoder::new(storage.create_buffer()?, 0)?;
@@ -78,10 +86,10 @@ impl EncoderBuilder {
         let seq = if self.sequence {
             let mut seq = zstd::Encoder::new(storage.create_buffer()?, 0)?;
             seq.include_magicbytes(false)?;
-            Some(SequenceWriter::new(
+            Some(WriteCounter::new(SequenceWriter::new(
                 self.sequence_type,
-                WriteCounter::new(seq),
-            ))
+                seq,
+            )))
         } else {
             None
         };
@@ -113,7 +121,7 @@ pub struct Encoder<'z, S: Storage> {
     ids: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     com: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     len: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
-    seq: Option<SequenceWriter<WriteCounter<zstd::Encoder<'z, S::Buffer>>>>,
+    seq: Option<WriteCounter<SequenceWriter<zstd::Encoder<'z, S::Buffer>>>>,
     qual: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
     // mask: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
 }
@@ -155,8 +163,8 @@ impl<S: Storage> Encoder<'_, S> {
             if let Some(seq) = record.sequence.as_ref() {
                 let length = seq.len();
                 write_length(length as u64, &mut self.len)?;
-                seq_writer.write_sequence(seq)?;
-                seq_writer.as_inner_mut().flush()?;
+                seq_writer.write(seq.as_bytes())?;
+                seq_writer.flush()?;
             } else {
                 panic!("missing sequence")
             }
@@ -180,12 +188,22 @@ impl<S: Storage> Encoder<'_, S> {
     pub fn write<W: Write>(self, mut file: W) -> Result<(), IoError> {
         // --- header ---
         file.write_all(&[0x01, 0xF9, 0xEC])?; // format descriptor
-        file.write_all(&[
-            self.header.format_version as u8,
-            self.header.sequence_type as u8,
-            self.header.flags.into(),
-            self.header.name_separator as u8,
-        ])?;
+
+        if self.header.format_version == FormatVersion::V1 {
+            file.write_all(&[
+                self.header.format_version as u8,
+                self.header.flags.into(),
+                self.header.name_separator as u8,
+            ])?;
+        } else {
+            file.write_all(&[
+                self.header.format_version as u8,
+                self.header.sequence_type as u8,
+                self.header.flags.into(),
+                self.header.name_separator as u8,
+            ])?;
+        }
+
         write_variable_length(self.header.line_length, &mut file)?;
         write_variable_length(self.header.number_of_sequences, &mut file)?;
 
@@ -222,8 +240,8 @@ impl<S: Storage> Encoder<'_, S> {
         // -- seq --
 
         if let Some(seq_writer) = self.seq {
-            let og_seqs = seq_writer.as_inner().len() as u64;
-            let mut seq_buffer = seq_writer.into_inner()?.into_inner().finish()?;
+            let og_seqs = seq_writer.len() as u64;
+            let mut seq_buffer = seq_writer.into_inner().into_inner()?.finish()?;
             seq_buffer.flush()?;
 
             write_variable_length(og_seqs, &mut file)?;
@@ -279,7 +297,7 @@ mod tests {
     #[test]
     fn encoder_tempfile() {
         let tempdir = tempfile::TempDir::new().unwrap();
-        let mut encoder = Encoder::with_storage(SequenceType::Rna, tempdir).unwrap();
+        let mut encoder = Encoder::with_storage(SequenceType::Dna, tempdir).unwrap();
         let mut r1 = Record {
             id: Some("r1".into()),
             comment: Some("record 1".into()),
@@ -296,7 +314,11 @@ mod tests {
         };
         encoder.push(&r2).unwrap();
 
-        let f = std::fs::File::create("/tmp/test2.naf").unwrap();
-        encoder.write(f).unwrap();
+        let mut f = std::fs::File::create("/tmp/test2.naf").unwrap();
+        encoder.write(&mut f).unwrap();
+        f.flush().unwrap();
+
+        let mut decoder = crate::Decoder::from_path("/tmp/test2.naf").unwrap();
+        let records = decoder.collect::<Vec<_>>();
     }
 }
