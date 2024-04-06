@@ -11,6 +11,7 @@ mod writer;
 use self::counter::WriteCounter;
 pub use self::storage::Memory;
 pub use self::storage::Storage;
+use self::writer::SequenceWriter;
 
 use super::Rc;
 use crate::data::Flag;
@@ -77,7 +78,10 @@ impl EncoderBuilder {
         let seq = if self.sequence {
             let mut seq = zstd::Encoder::new(storage.create_buffer()?, 0)?;
             seq.include_magicbytes(false)?;
-            Some(WriteCounter::new(seq))
+            Some(SequenceWriter::new(
+                self.sequence_type,
+                WriteCounter::new(seq),
+            ))
         } else {
             None
         };
@@ -109,7 +113,7 @@ pub struct Encoder<'z, S: Storage> {
     ids: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     com: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     len: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
-    seq: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
+    seq: Option<SequenceWriter<WriteCounter<zstd::Encoder<'z, S::Buffer>>>>,
     qual: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
     // mask: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
 }
@@ -151,8 +155,8 @@ impl<S: Storage> Encoder<'_, S> {
             if let Some(seq) = record.sequence.as_ref() {
                 let length = seq.len();
                 write_length(length as u64, &mut self.len)?;
-                seq_writer.write_all(seq.as_bytes())?;
-                seq_writer.flush()?;
+                seq_writer.write_sequence(seq)?;
+                seq_writer.as_inner_mut().flush()?;
             } else {
                 panic!("missing sequence")
             }
@@ -195,6 +199,16 @@ impl<S: Storage> Encoder<'_, S> {
         write_variable_length(self.storage.buffer_length(&ids_buffer)? as u64, &mut file)?;
         self.storage.write_buffer(ids_buffer, &mut file)?;
 
+        // -- com ---
+
+        let og_com = self.com.len() as u64;
+        let mut com_buffer = self.com.into_inner().finish()?;
+        com_buffer.flush()?;
+
+        write_variable_length(og_com, &mut file)?;
+        write_variable_length(self.storage.buffer_length(&com_buffer)? as u64, &mut file)?;
+        self.storage.write_buffer(com_buffer, &mut file)?;
+
         // -- lengths --
 
         let og_lens = self.len.len() as u64;
@@ -208,8 +222,8 @@ impl<S: Storage> Encoder<'_, S> {
         // -- seq --
 
         if let Some(seq_writer) = self.seq {
-            let og_seqs = seq_writer.len() as u64;
-            let mut seq_buffer = seq_writer.into_inner().finish()?;
+            let og_seqs = seq_writer.as_inner().len() as u64;
+            let mut seq_buffer = seq_writer.into_inner()?.into_inner().finish()?;
             seq_buffer.flush()?;
 
             write_variable_length(og_seqs, &mut file)?;
@@ -265,11 +279,11 @@ mod tests {
     #[test]
     fn encoder_tempfile() {
         let tempdir = tempfile::TempDir::new().unwrap();
-        let mut encoder = Encoder::with_storage(SequenceType::Protein, tempdir).unwrap();
+        let mut encoder = Encoder::with_storage(SequenceType::Rna, tempdir).unwrap();
         let mut r1 = Record {
             id: Some("r1".into()),
             comment: Some("record 1".into()),
-            sequence: Some("MYYK".into()),
+            sequence: Some("ATTATTGC".into()),
             ..Default::default()
         };
         encoder.push(&r1).unwrap();
@@ -277,7 +291,7 @@ mod tests {
         let mut r2 = Record {
             id: Some("r2".into()),
             comment: Some("record 2".into()),
-            sequence: Some("MTTE".into()),
+            sequence: Some("ATATGVBGD".into()),
             ..Default::default()
         };
         encoder.push(&r2).unwrap();
