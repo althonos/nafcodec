@@ -57,7 +57,7 @@ impl EncoderBuilder {
         Self {
             sequence_type,
             quality: false,
-            sequence: false,
+            sequence: true,
         }
     }
 
@@ -67,21 +67,36 @@ impl EncoderBuilder {
         header.sequence_type = self.sequence_type;
         header.flags = Flags::new(Flag::Sequence | Flag::Lengths | Flag::Comments | Flag::Ids); // sequence | lenghts | ids
 
-        let mut ids = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
-        ids.include_magicbytes(false).unwrap();
-        let mut com = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
-        com.include_magicbytes(false).unwrap();
-        let mut seqs = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
-        seqs.include_magicbytes(false).unwrap();
-        let mut lens = zstd::Encoder::new(storage.create_buffer()?, 0).unwrap();
-        lens.include_magicbytes(false).unwrap();
+        let mut ids = zstd::Encoder::new(storage.create_buffer()?, 0)?;
+        ids.include_magicbytes(false)?;
+        let mut com = zstd::Encoder::new(storage.create_buffer()?, 0)?;
+        com.include_magicbytes(false)?;
+        let mut lens = zstd::Encoder::new(storage.create_buffer()?, 0)?;
+        lens.include_magicbytes(false)?;
+
+        let seq = if self.sequence {
+            let mut seq = zstd::Encoder::new(storage.create_buffer()?, 0)?;
+            seq.include_magicbytes(false)?;
+            Some(WriteCounter::new(seq))
+        } else {
+            None
+        };
+
+        let qual = if self.quality {
+            let mut qual = zstd::Encoder::new(storage.create_buffer()?, 0)?;
+            qual.include_magicbytes(false)?;
+            Some(WriteCounter::new(qual))
+        } else {
+            None
+        };
 
         Ok(Encoder {
             header,
             storage,
+            seq,
+            qual,
             ids: WriteCounter::new(ids),
             com: WriteCounter::new(com),
-            seq: WriteCounter::new(seqs),
             len: WriteCounter::new(lens),
         })
     }
@@ -94,8 +109,8 @@ pub struct Encoder<'z, S: Storage> {
     ids: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     com: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     len: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
-    seq: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
-    // qual: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
+    seq: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
+    qual: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
     // mask: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
 }
 
@@ -132,13 +147,26 @@ impl<S: Storage> Encoder<'_, S> {
             panic!("missing comment");
         }
 
-        if let Some(seq) = record.sequence.as_ref() {
-            let length = seq.len();
-            write_length(length as u64, &mut self.len)?;
-            self.seq.write_all(seq.as_bytes())?;
-            self.seq.flush()?;
-        } else {
-            panic!("missing sequence")
+        if let Some(seq_writer) = self.seq.as_mut() {
+            if let Some(seq) = record.sequence.as_ref() {
+                let length = seq.len();
+                write_length(length as u64, &mut self.len)?;
+                seq_writer.write_all(seq.as_bytes())?;
+                seq_writer.flush()?;
+            } else {
+                panic!("missing sequence")
+            }
+        }
+
+        if let Some(qual_writer) = self.qual.as_mut() {
+            if let Some(qual) = record.quality.as_ref() {
+                let length = qual.len();
+                write_length(length as u64, &mut self.len)?;
+                qual_writer.write_all(qual.as_bytes())?;
+                qual_writer.flush()?;
+            } else {
+                panic!("missing quality")
+            }
         }
 
         self.header.number_of_sequences += 1;
@@ -146,17 +174,6 @@ impl<S: Storage> Encoder<'_, S> {
     }
 
     pub fn write<W: Write>(self, mut file: W) -> Result<(), IoError> {
-        let og_ids = self.ids.len() as u64;
-        let og_lens = self.len.len() as u64;
-        let og_seqs = self.seq.len() as u64;
-
-        let mut ids_buffer = self.ids.into_inner().finish()?;
-        ids_buffer.flush()?;
-        let mut len_buffer = self.len.into_inner().finish()?;
-        len_buffer.flush()?;
-        let mut seq_buffer = self.seq.into_inner().finish()?;
-        seq_buffer.flush()?;
-
         // --- header ---
         file.write_all(&[0x01, 0xF9, 0xEC])?; // format descriptor
         file.write_all(&[
@@ -169,19 +186,48 @@ impl<S: Storage> Encoder<'_, S> {
         write_variable_length(self.header.number_of_sequences, &mut file)?;
 
         // -- ids ---
+
+        let og_ids = self.ids.len() as u64;
+        let mut ids_buffer = self.ids.into_inner().finish()?;
+        ids_buffer.flush()?;
+
         write_variable_length(og_ids, &mut file)?;
         write_variable_length(self.storage.buffer_length(&ids_buffer)? as u64, &mut file)?;
         self.storage.write_buffer(ids_buffer, &mut file)?;
 
         // -- lengths --
+
+        let og_lens = self.len.len() as u64;
+        let mut len_buffer = self.len.into_inner().finish()?;
+        len_buffer.flush()?;
+
         write_variable_length(og_lens, &mut file)?;
         write_variable_length(self.storage.buffer_length(&len_buffer)? as u64, &mut file)?;
         self.storage.write_buffer(len_buffer, &mut file)?;
 
         // -- seq --
-        write_variable_length(og_seqs, &mut file)?;
-        write_variable_length(self.storage.buffer_length(&seq_buffer)? as u64, &mut file)?;
-        self.storage.write_buffer(seq_buffer, &mut file)?;
+
+        if let Some(seq_writer) = self.seq {
+            let og_seqs = seq_writer.len() as u64;
+            let mut seq_buffer = seq_writer.into_inner().finish()?;
+            seq_buffer.flush()?;
+
+            write_variable_length(og_seqs, &mut file)?;
+            write_variable_length(self.storage.buffer_length(&seq_buffer)? as u64, &mut file)?;
+            self.storage.write_buffer(seq_buffer, &mut file)?;
+        }
+
+        // -- qual --
+
+        if let Some(qual_writer) = self.qual {
+            let og_qual = qual_writer.len() as u64;
+            let mut qual_buffer = qual_writer.into_inner().finish()?;
+            qual_buffer.flush()?;
+
+            write_variable_length(og_qual, &mut file)?;
+            write_variable_length(self.storage.buffer_length(&qual_buffer)? as u64, &mut file)?;
+            self.storage.write_buffer(qual_buffer, &mut file)?;
+        }
 
         file.flush()?;
         Ok(())
