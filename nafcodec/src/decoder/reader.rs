@@ -191,8 +191,11 @@ impl<R: BufRead> MaskReader<R> {
             mask: false,
         }
     }
+}
 
-    pub fn next(&mut self) -> Option<Result<MaskUnit, std::io::Error>> {
+impl<R: BufRead> Iterator for MaskReader<R> {
+    type Item = Result<MaskUnit, std::io::Error>;
+    fn next(&mut self) -> Option<Self::Item> {
         if self.current >= self.total {
             return None;
         }
