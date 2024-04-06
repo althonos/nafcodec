@@ -31,7 +31,7 @@ impl<W: Write> SequenceWriter<W> {
         let mut bytes = s.as_bytes();
         let mut encoded = Vec::with_capacity((s.len() + 1) / 2);
         if let Some(letter) = self.cache.take() {
-            let c = (Self::encode(letter) << 4) & Self::encode(bytes[0]);
+            let c = (Self::encode(bytes[0]) << 4) | (Self::encode(letter) << 4);
             encoded.push(c);
             bytes = &bytes[1..];
         }
@@ -40,12 +40,15 @@ impl<W: Write> SequenceWriter<W> {
             if chunk.len() == 1 {
                 self.cache = Some(chunk[0]);
             } else {
-                let c = (Self::encode(chunk[0]) << 4) & Self::encode(chunk[1]);
+                let c = (Self::encode(chunk[1]) << 4) | Self::encode(chunk[0]);
                 encoded.push(c);
             }
         }
 
-        self.writer.write_all(&encoded)
+        println!("{:?}", s);
+        println!("{:?}", encoded);
+        self.writer.write_all(&encoded)?;
+        self.writer.flush()
     }
 
     pub fn as_inner(&self) -> &W {
@@ -59,8 +62,9 @@ impl<W: Write> SequenceWriter<W> {
     pub fn into_inner(mut self) -> Result<W, IoError> {
         // make sure to write the last letter of the last sequence if any.
         if let Some(letter) = self.cache.take() {
-            self.writer.write_all(&[Self::encode(letter) << 4])?;
+            self.writer.write_all(&[Self::encode(letter)])?;
         }
+        self.writer.flush()?;
         Ok(self.writer)
     }
 
