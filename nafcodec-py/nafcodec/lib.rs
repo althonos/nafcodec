@@ -348,6 +348,20 @@ impl Decoder {
         }
     }
 
+    pub fn __enter__<'py>(slf: PyRef<'py, Self>) -> PyRef<'py, Self> {
+        slf
+    }
+
+    #[allow(unused)]
+    pub fn __exit__<'py>(
+        slf: PyRefMut<'py, Self>,
+        exc_type: Bound<'py, PyAny>,
+        exc_value: Bound<'py, PyAny>,
+        traceback: Bound<'py, PyAny>,
+    ) -> PyResult<bool> {
+        Ok(false)
+    }
+
     /// `str`: The type of sequence stored in the archive.
     #[getter]
     pub fn sequence_type(slf: PyRef<'_, Self>) -> PyObject {
