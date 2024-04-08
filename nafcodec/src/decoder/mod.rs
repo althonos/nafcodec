@@ -16,6 +16,7 @@ use self::ioslice::IoSlice;
 use self::reader::*;
 use super::Rc;
 use crate::data::Flag;
+use crate::data::Flags;
 use crate::data::Header;
 use crate::data::MaskUnit;
 use crate::data::Record;
@@ -61,6 +62,67 @@ impl DecoderBuilder {
             mask: true,
             comment: true,
         }
+    }
+
+    /// Create a new decoder builder from the given flags.
+    ///
+    /// This constructor can be used as a shortcut to setup decoding
+    /// of a subset of supported fields. For instance, to read only the
+    /// sequence identifiers and quality lines from an archive:
+    /// ```
+    /// # use nafcodec::{DecoderBuilder, Flag};
+    /// let mut decoder = DecoderBuilder::from_flags(Flag::Id | Flag::Quality)
+    ///     .from_path("../data/phix.naf")
+    ///     .unwrap();
+    ///
+    /// let record = decoder.next().unwrap().unwrap();
+    /// assert!(record.sequence.is_none());
+    /// assert!(record.quality.is_some());
+    /// ```
+    pub fn from_flags<F: Into<Flags>>(flags: F) -> Self {
+        let flags = flags.into();
+        let mut builder = Self::new();
+        builder.quality(flags.test(Flag::Quality));
+        builder.sequence(flags.test(Flag::Sequence));
+        builder.mask(flags.test(Flag::Mask));
+        builder.comment(flags.test(Flag::Comment));
+        builder
+    }
+
+    /// The buffer size to use while reading.
+    ///
+    /// Note that [`Decoder`] uses a lot of buffered I/O, and that more than
+    /// one buffer will be created. Nevertheless, a higher value will reduce
+    /// the necessity to seek the reader while reading the different blocks.
+    ///
+    /// By default, a buffer size of 4KiB is used for each internal buffer.
+    pub fn buffer_size(&mut self, buffer_size: usize) -> &mut Self {
+        self.buffer_size = buffer_size;
+        self
+    }
+
+    /// Whether or not to decode the sequence comment if available.
+    pub fn comment(&mut self, comment: bool) -> &mut Self {
+        self.comment = comment;
+        self
+    }
+
+    /// Whether or not to decode the sequence string if available.
+    pub fn sequence(&mut self, sequence: bool) -> &mut Self {
+        self.sequence = sequence;
+        self
+    }
+
+    /// Whether or not to decode the quality string if available.
+    pub fn quality(&mut self, quality: bool) -> &mut Self {
+        self.quality = quality;
+        self
+    }
+
+    /// Whether or not to perform region masking in the output sequence.
+    pub fn mask(&mut self, mask: bool) -> &mut Self {
+        self.mask = mask;
+        self
     }
 
     /// Build a decoder with this configuration that reads a file at the given path.
@@ -142,9 +204,9 @@ impl DecoderBuilder {
 
         let flags = header.flags();
         let mut seqlen = 0;
-        setup_block!(flags.test(Flag::Ids), true, rc, ids_block);
-        setup_block!(flags.test(Flag::Comments), true, rc, com_block);
-        setup_block!(flags.test(Flag::Lengths), true, rc, len_block);
+        setup_block!(flags.test(Flag::Id), true, rc, ids_block);
+        setup_block!(flags.test(Flag::Comment), true, rc, com_block);
+        setup_block!(flags.test(Flag::Length), true, rc, len_block);
         setup_block!(flags.test(Flag::Mask), self.mask, rc, mask_block);
         setup_block!(
             flags.test(Flag::Sequence),
@@ -167,42 +229,6 @@ impl DecoderBuilder {
             reader: rc,
             unit: MaskUnit::Unmasked(0),
         })
-    }
-
-    /// The buffer size to use while reading.
-    ///
-    /// Note that [`Decoder`] uses a lot of buffered I/O, and that more than
-    /// one buffer will be created. Nevertheless, a higher value will reduce
-    /// the necessity to seek the reader while reading the different blocks.
-    ///
-    /// By default, a buffer size of 4KiB is used for each internal buffer.
-    pub fn buffer_size(&mut self, buffer_size: usize) -> &mut Self {
-        self.buffer_size = buffer_size;
-        self
-    }
-
-    /// Whether or not to decode the sequence comment if available.
-    pub fn comment(&mut self, comment: bool) -> &mut Self {
-        self.comment = comment;
-        self
-    }
-
-    /// Whether or not to decode the sequence string if available.
-    pub fn sequence(&mut self, sequence: bool) -> &mut Self {
-        self.sequence = sequence;
-        self
-    }
-
-    /// Whether or not to decode the quality string if available.
-    pub fn quality(&mut self, quality: bool) -> &mut Self {
-        self.quality = quality;
-        self
-    }
-
-    /// Whether or not to perform region masking in the output sequence.
-    pub fn mask(&mut self, mask: bool) -> &mut Self {
-        self.mask = mask;
-        self
     }
 }
 

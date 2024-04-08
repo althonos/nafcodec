@@ -67,6 +67,27 @@ impl EncoderBuilder {
         }
     }
 
+    /// Create a new encoder builder from the given flags.
+    ///
+    /// This constructor can be used as a shortcut to setup encoding
+    /// of a subset of supported fields. For instance, to write only
+    /// the sequence identifiers and quality lines to an archive:
+    /// ```
+    /// # use nafcodec::{EncoderBuilder, Flag, Memory, SequenceType::Dna};
+    /// let mut encoder = EncoderBuilder::from_flags(Dna, Flag::Id | Flag::Quality)
+    ///     .from_storage(Memory)
+    ///     .unwrap();
+    /// # drop(encoder);
+    /// ```
+    pub fn from_flags<F: Into<Flags>>(sequence_type: SequenceType, flags: F) -> Self {
+        let flags = flags.into();
+        let mut builder = Self::new(sequence_type);
+        builder.quality(flags.test(Flag::Quality));
+        builder.sequence(flags.test(Flag::Sequence));
+        builder.comment(flags.test(Flag::Comment));
+        builder
+    }
+
     /// Whether or not to encode the comment of each record.
     pub fn comment(&mut self, comment: bool) -> &mut Self {
         self.comment = comment;
@@ -116,13 +137,13 @@ impl EncoderBuilder {
             header.format_version = FormatVersion::V2;
         }
 
-        header.flags.set(Flag::Ids);
+        header.flags.set(Flag::Id);
         if self.comment {
-            header.flags.set(Flag::Comments);
+            header.flags.set(Flag::Comment);
         }
         if self.sequence {
             header.flags.set(Flag::Sequence);
-            header.flags.set(Flag::Lengths);
+            header.flags.set(Flag::Length);
         }
         if self.quality {
             header.flags.set(Flag::Quality);

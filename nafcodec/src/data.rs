@@ -79,11 +79,11 @@ pub enum Flag {
     /// A flag indicating sequence masks are stored in the archive.
     Mask = 0x4,
     /// A flag indicating sequence lengths are stored in the archive.
-    Lengths = 0x8,
+    Length = 0x8,
     /// A flag indicating sequence comments are stored in the archive.
-    Comments = 0x10,
+    Comment = 0x10,
     /// A flag indicating sequence identifiers are stored in the archive.
-    Ids = 0x20,
+    Id = 0x20,
     /// A flag indicating the archive has a title.
     Title = 0x40,
     /// A flag reserved for future extension of the format.
@@ -97,9 +97,9 @@ impl Flag {
             Flag::Quality,
             Flag::Sequence,
             Flag::Mask,
-            Flag::Lengths,
-            Flag::Comments,
-            Flag::Ids,
+            Flag::Length,
+            Flag::Comment,
+            Flag::Id,
             Flag::Title,
             Flag::Extended,
         ]
@@ -152,6 +152,12 @@ impl Flags {
 impl Default for Flags {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl From<Flag> for Flags {
+    fn from(value: Flag) -> Self {
+        Self(value.as_byte())
     }
 }
 
