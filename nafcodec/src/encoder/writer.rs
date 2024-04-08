@@ -69,13 +69,14 @@ impl<W: Write> Write for SequenceWriter<W> {
         let mut bytes = s;
         let mut encoded = Vec::with_capacity((s.len() + 1) / 2);
         if let Some(letter) = self.cache.take() {
-            let c = (self.encode(s[0])? << 4) | (self.encode(letter)? << 4);
+            let c = (self.encode(s[0])? << 4) | self.encode(letter)?;
             encoded.push(c);
             bytes = &s[1..];
         }
 
         for chunk in bytes.chunks(2) {
             if chunk.len() == 1 {
+                assert!(self.cache.is_none());
                 self.cache = Some(chunk[0]);
             } else {
                 let c = (self.encode(chunk[1])? << 4) | self.encode(chunk[0])?;
@@ -85,7 +86,7 @@ impl<W: Write> Write for SequenceWriter<W> {
 
         self.writer.write_all(&encoded)?;
         self.writer.flush()?;
-        Ok(length)
+        Ok(encoded.len())
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
