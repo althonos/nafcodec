@@ -16,7 +16,6 @@ use pyo3::exceptions::PyOSError;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyUnicodeError;
 use pyo3::exceptions::PyValueError;
-use pyo3::ffi::lenfunc;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::types::PyString;
@@ -179,29 +178,33 @@ impl Record {
         }))
     }
 
-    fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
+    fn __repr__<'py>(slf: &Bound<'_, Self>) -> PyResult<PyObject> {
         let py = slf.py();
         let format = pyo3::intern!(py, "format");
         let args = PyList::empty_bound(py);
-        if let Some(id) = &slf.id {
+        let record = slf.borrow();
+        if let Some(id) = &record.id {
             args.append(pyo3::intern!(py, "id={!r}").call_method1(format, (id,))?)?;
         }
-        if let Some(comment) = &slf.comment {
+        if let Some(comment) = &record.comment {
             args.append(pyo3::intern!(py, "comment={!r}").call_method1(format, (comment,))?)?;
         }
-        if let Some(sequence) = &slf.sequence {
+        if let Some(sequence) = &record.sequence {
             args.append(pyo3::intern!(py, "sequence={!r}").call_method1(format, (sequence,))?)?;
         }
-        if let Some(quality) = &slf.quality {
+        if let Some(quality) = &record.quality {
             args.append(pyo3::intern!(py, "quality={!r}").call_method1(format, (quality,))?)?;
         }
-        if let Some(length) = &slf.length {
+        if let Some(length) = &record.length {
             args.append(format!("length={}", length).to_object(py))?;
         }
-        pyo3::intern!(py, "Record({})")
+        pyo3::intern!(py, "{}({})")
             .call_method1(
                 format,
-                (pyo3::intern!(py, ", ").call_method1("join", (args,))?,),
+                (
+                    slf.get_type().name()?,
+                    pyo3::intern!(py, ", ").call_method1("join", (args,))?,
+                ),
             )
             .map(|x| x.to_object(py))
     }
