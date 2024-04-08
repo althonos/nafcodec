@@ -165,6 +165,7 @@ impl EncoderBuilder {
         }
         if self.quality {
             header.flags.set(Flag::Quality);
+            header.flags.set(Flag::Length);
         }
 
         let lens = self.new_buffer(&storage)?;
