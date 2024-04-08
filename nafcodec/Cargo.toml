@@ -24,3 +24,7 @@ optional = true
 default = ["tempfile"]
 arc = []
 nightly = []
+
+[[test]]
+name = "decode"
+path = "tests/decoder/mod.rs"

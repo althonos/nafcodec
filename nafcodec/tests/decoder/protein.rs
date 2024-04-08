@@ -3,7 +3,7 @@ use nafcodec::SequenceType;
 
 #[test]
 fn decode() {
-    const ARCHIVE: &[u8] = include_bytes!("../../data/LuxC.naf");
+    const ARCHIVE: &[u8] = include_bytes!("../../../data/LuxC.naf");
 
     let c = std::io::Cursor::new(ARCHIVE);
     let mut decoder = Decoder::new(c).unwrap();
