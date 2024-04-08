@@ -51,6 +51,7 @@ pub struct EncoderBuilder {
     sequence_type: SequenceType,
     sequence: bool,
     quality: bool,
+    comments: bool,
     compression_level: i32,
 }
 
@@ -60,9 +61,16 @@ impl EncoderBuilder {
         Self {
             sequence_type,
             quality: false,
+            comments: false,
             sequence: true,
             compression_level: 0,
         }
+    }
+
+    /// Whether or not to encode the comments of records.
+    pub fn comments(&mut self, comments: bool) -> &mut Self {
+        self.comments = comments;
+        self
     }
 
     /// Whether or not to encode the sequence of records.
@@ -105,7 +113,9 @@ impl EncoderBuilder {
         }
 
         header.flags.set(Flag::Ids);
-        header.flags.set(Flag::Comments);
+        if self.comments {
+            header.flags.set(Flag::Comments);
+        }
         if self.sequence {
             header.flags.set(Flag::Sequence);
             header.flags.set(Flag::Lengths);
@@ -115,8 +125,12 @@ impl EncoderBuilder {
         }
 
         let ids = self.new_buffer(&storage)?;
-        let com = self.new_buffer(&storage)?;
         let lens = self.new_buffer(&storage)?;
+        let com = if self.comments {
+            Some(WriteCounter::new(self.new_buffer(&storage)?))
+        } else {
+            None
+        };
         let seq = if self.sequence {
             Some(WriteCounter::new(SequenceWriter::new(
                 self.sequence_type,
@@ -136,8 +150,8 @@ impl EncoderBuilder {
             storage,
             seq,
             qual,
+            com,
             ids: WriteCounter::new(ids),
-            com: WriteCounter::new(com),
             len: WriteCounter::new(lens),
         })
     }
@@ -154,8 +168,8 @@ pub struct Encoder<'z, S: Storage> {
     header: Header,
     storage: S,
     ids: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
-    com: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     len: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
+    com: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
     seq: Option<WriteCounter<SequenceWriter<zstd::Encoder<'z, S::Buffer>>>>,
     qual: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
     // mask: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
@@ -185,11 +199,14 @@ impl<S: Storage> Encoder<'_, S> {
             panic!("missing ids")
         }
 
-        if let Some(com) = record.comment.as_ref() {
-            self.com.write_all(com.as_bytes())?;
-            self.com.write_all(b"\0")?;
-        } else {
-            panic!("missing comment");
+        if let Some(com_writer) = self.com.as_mut() {
+            if let Some(com) = record.comment.as_ref() {
+                com_writer.write_all(com.as_bytes())?;
+                com_writer.write_all(b"\0")?;
+                com_writer.flush()?;
+            } else {
+                panic!("missing comment");
+            }
         }
 
         if let Some(seq_writer) = self.seq.as_mut() {
@@ -252,13 +269,15 @@ impl<S: Storage> Encoder<'_, S> {
 
         // -- com ---
 
-        let og_com = self.com.len() as u64;
-        let mut com_buffer = self.com.into_inner().finish()?;
-        com_buffer.flush()?;
+        if let Some(com_writer) = self.com {
+            let og_com = com_writer.len() as u64;
+            let mut com_buffer = com_writer.into_inner().finish()?;
+            com_buffer.flush()?;
 
-        write_variable_length(og_com, &mut file)?;
-        write_variable_length(self.storage.buffer_length(&com_buffer)? as u64, &mut file)?;
-        self.storage.write_buffer(com_buffer, &mut file)?;
+            write_variable_length(og_com, &mut file)?;
+            write_variable_length(self.storage.buffer_length(&com_buffer)? as u64, &mut file)?;
+            self.storage.write_buffer(com_buffer, &mut file)?;
+        }
 
         // -- lengths --
 
