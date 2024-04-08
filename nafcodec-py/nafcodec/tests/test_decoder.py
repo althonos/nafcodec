@@ -22,6 +22,16 @@ class _TestDecoder(object):
         raise NotImplementedError
 
     @unittest.skipUnless(files, "importlib.resources not found")
+    def test_len(self):
+        decoder = self._get_decoder("phix.naf")
+        self.assertEqual(len(decoder), 42)
+        next(decoder)
+        self.assertEqual(len(decoder), 41)
+        records = list(decoder)
+        self.assertEqual(len(records), 41)
+        self.assertEqual(len(decoder), 0)
+
+    @unittest.skipUnless(files, "importlib.resources not found")
     def test_fastq(self):
         decoder = self._get_decoder("phix.naf")
         self.assertEqual(decoder.sequence_type, "dna")
