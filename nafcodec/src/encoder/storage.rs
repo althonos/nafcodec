@@ -4,11 +4,11 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 
-/// A marker trait for buffers stored in memory.
+/// A marker type for in-memory storage.
 #[derive(Debug, Default, Clone)]
 pub struct Memory;
 
-/// Mark a suitable location to be used as temporary I/O storage.
+/// An abstract interface for temporary I/O storage.
 pub trait Storage: Sized {
     /// The concrete type to which to write temporary data.
     type Buffer: Write;

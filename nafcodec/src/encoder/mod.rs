@@ -142,6 +142,13 @@ impl EncoderBuilder {
     }
 }
 
+/// An encoder for Nucleotide Archive Format files.
+///
+/// NAF archives decomposes data into separate content blocks, which means
+/// a NAF file can only be written to a file once all the records have been
+/// processed. The encoder uses a temporary storage to store the
+/// intermediate data, with an abstract interface declared as the
+/// [`Storage`] trait.
 pub struct Encoder<'z, S: Storage> {
     header: Header,
     storage: S,
