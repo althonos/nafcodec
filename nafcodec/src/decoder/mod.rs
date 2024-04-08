@@ -13,7 +13,10 @@ mod parser;
 mod reader;
 
 use self::ioslice::IoSlice;
-use self::reader::*;
+use self::reader::CStringReader;
+use self::reader::LengthReader;
+use self::reader::MaskReader;
+use self::reader::SequenceReader;
 use super::Rc;
 use crate::data::Flag;
 use crate::data::Flags;
@@ -436,7 +439,6 @@ impl<R: BufRead + Seek> FusedIterator for Decoder<'_, R> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::MaskUnit;
 
     const ARCHIVE: &[u8] = include_bytes!("../../../data/LuxC.naf");
 

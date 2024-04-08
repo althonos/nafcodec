@@ -1,7 +1,4 @@
-use std::fs::File;
 use std::io::Error as IoError;
-use std::io::Seek;
-use std::io::SeekFrom;
 use std::io::Write;
 
 mod counter;
@@ -13,7 +10,6 @@ pub use self::storage::Memory;
 pub use self::storage::Storage;
 use self::writer::SequenceWriter;
 
-use super::Rc;
 use crate::data::Flag;
 use crate::data::Flags;
 use crate::data::Header;
@@ -360,7 +356,7 @@ mod tests {
     #[test]
     fn encoder_memory() {
         let mut encoder = Encoder::<Memory>::new(SequenceType::Protein).unwrap();
-        let mut r1 = Record {
+        let r1 = Record {
             id: Some("r1".into()),
             comment: Some("record 1".into()),
             sequence: Some("MYYK".into()),
@@ -368,7 +364,7 @@ mod tests {
         };
         encoder.push(&r1).unwrap();
 
-        let mut r2 = Record {
+        let r2 = Record {
             id: Some("r2".into()),
             comment: Some("record 2".into()),
             sequence: Some("MTTE".into()),
@@ -385,7 +381,7 @@ mod tests {
     fn encoder_tempfile() {
         let tempdir = tempfile::TempDir::new().unwrap();
         let mut encoder = Encoder::from_storage(SequenceType::Dna, tempdir).unwrap();
-        let mut r1 = Record {
+        let r1 = Record {
             id: Some("r1".into()),
             comment: Some("record 1".into()),
             sequence: Some("ATTATTGC".into()),
@@ -393,7 +389,7 @@ mod tests {
         };
         encoder.push(&r1).unwrap();
 
-        let mut r2 = Record {
+        let r2 = Record {
             id: Some("r2".into()),
             comment: Some("record 2".into()),
             sequence: Some("ATATGVBGD".into()),
@@ -405,7 +401,8 @@ mod tests {
         encoder.write(&mut f).unwrap();
         f.flush().unwrap();
 
-        let mut decoder = crate::Decoder::from_path("/tmp/test2.naf").unwrap();
+        let decoder = crate::Decoder::from_path("/tmp/test2.naf").unwrap();
         let records = decoder.collect::<Vec<_>>();
+        assert_eq!(records.len(), 2);
     }
 }

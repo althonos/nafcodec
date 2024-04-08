@@ -10,7 +10,6 @@ use pyo3::prelude::*;
 use pyo3::types::PyByteArray;
 use pyo3::types::PyBytes;
 use pyo3::types::PyLong;
-use pyo3::PyObject;
 
 // ---------------------------------------------------------------------------
 
@@ -129,7 +128,7 @@ impl PyFileRead {
             {
                 Ok(n) => match n.extract::<usize>(py) {
                     Ok(n) => Ok(n),
-                    Err(e) => {
+                    Err(_) => {
                         let ty = n.as_ref(py).get_type().name()?.to_string();
                         let msg = format!("expected int, found {}", ty);
                         PyTypeError::new_err(msg).restore(py);

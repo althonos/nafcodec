@@ -2,7 +2,6 @@
 
 // --- MaskUnit ----------------------------------------------------------------
 
-use std::ops::BitAnd;
 use std::ops::BitOr;
 use std::ops::BitOrAssign;
 
