@@ -37,11 +37,9 @@ the contents of a NAF file.
   without having to decode full blocks.
 - **optional decoding**: Allow the decoder to skip the decoding of certains
   fields, such as ignoring quality strings when they are not needed.
-
-The following features are planned:
-
-- **encoder**: Implement an encoder as well, using either in-memory buffers
-  or temporary files to grow the archive.
+- **flexible encoder**: The encoder is implemented using an abstract storage
+  interface for temporary data, which allows to keep sequence in memory or
+  inside a temporary folder.
 
 ### 🔌 Usage
 
