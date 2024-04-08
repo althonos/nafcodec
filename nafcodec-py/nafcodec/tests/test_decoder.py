@@ -28,7 +28,9 @@ class _TestDecoder(object):
         records = list(decoder)
         self.assertEqual(len(records), 42)
         self.assertEqual(records[0].id, "SRR1377138.1")
-        self.assertEqual(records[0].sequence[:36], "NGCTCTTAAACCTGCTATTGAGGCTTGTGGCATTTC")
+        self.assertEqual(
+            records[0].sequence[:36], "NGCTCTTAAACCTGCTATTGAGGCTTGTGGCATTTC"
+        )
         self.assertEqual(records[0].quality[:31], "#8CCCGGGGGGGGGGGGGGGGGGGGGGGGGG")
 
     @unittest.skipUnless(files, "importlib.resources not found")
@@ -38,10 +40,10 @@ class _TestDecoder(object):
         records = list(decoder)
         self.assertEqual(len(records), 100)
         self.assertEqual(records[0].id, "lcl|NZ_CP040672.1_cds_WP_044801954.1_1")
-        self.assertEqual(records[0].sequence.count('A'), 181)
-        self.assertEqual(records[0].sequence.count('C'), 200)
-        self.assertEqual(records[0].sequence.count('G'), 210)
-        self.assertEqual(records[0].sequence.count('T'), 240)
+        self.assertEqual(records[0].sequence.count("A"), 181)
+        self.assertEqual(records[0].sequence.count("C"), 200)
+        self.assertEqual(records[0].sequence.count("G"), 210)
+        self.assertEqual(records[0].sequence.count("T"), 240)
         self.assertIs(records[0].quality, None)
 
     @unittest.skipUnless(files, "importlib.resources not found")
@@ -81,7 +83,7 @@ class TestDecoderHandle(_TestDecoder, unittest.TestCase):
 
 
 class TestDecoderFile(_TestDecoder, unittest.TestCase):
-    
+
     def setUp(self):
         self.handle = None
 
@@ -96,7 +98,7 @@ class TestDecoderFile(_TestDecoder, unittest.TestCase):
     def test_error_filenotfound(self):
         with self.assertRaises(FileNotFoundError):
             decoder = nafcodec.Decoder("")
-        
+
     @unittest.skipIf(os.name == "nt", "Windows error codes differ")
     def test_error_isadirectory(self):
         with self.assertRaises(IsADirectoryError):

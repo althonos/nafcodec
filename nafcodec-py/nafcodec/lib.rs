@@ -16,6 +16,7 @@ use pyo3::exceptions::PyOSError;
 use pyo3::exceptions::PyUnicodeError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyList;
 use pyo3::types::PyString;
 
 /// Convert a `nafcodec::error::Error` into a Python exception.
@@ -73,6 +74,86 @@ pub struct Record {
     /// `str` or `None`: The record sequence length.
     #[pyo3(get, set)]
     length: Option<u64>,
+}
+
+#[pymethods]
+impl Record {
+    #[new]
+    #[pyo3(signature = (*, id=None, comment=None, sequence=None, quality=None, length=None))]
+    fn __init__<'py>(
+        py: Python<'py>,
+        id: Option<Py<PyString>>,
+        comment: Option<Py<PyString>>,
+        sequence: Option<Py<PyString>>,
+        quality: Option<Py<PyString>>,
+        mut length: Option<u64>,
+    ) -> PyResult<PyClassInitializer<Self>> {
+        // Check lengths are consistent.
+        if let Some(seq) = sequence.as_ref() {
+            if let Some(qual) = quality.as_ref() {
+                if seq.bind(py).len()? != qual.bind(py).len()? {
+                    return Err(PyValueError::new_err(
+                        "lengths of sequence and quality don't match",
+                    ));
+                }
+            }
+            if let Some(&l) = length.as_ref() {
+                if seq.bind(py).len()? != l as usize {
+                    return Err(PyValueError::new_err(
+                        "length of sequence and record length don't match",
+                    ));
+                }
+            } else {
+                length = Some(seq.bind(py).len()? as u64);
+            }
+        }
+        if let Some(qual) = quality.as_ref() {
+            if let Some(&l) = length.as_ref() {
+                if qual.bind(py).len()? != l as usize {
+                    return Err(PyValueError::new_err(
+                        "length of quality and record length don't match",
+                    ));
+                }
+            } else {
+                length = Some(qual.bind(py).len()? as u64);
+            }
+        }
+
+        Ok(PyClassInitializer::from(Record {
+            id,
+            comment,
+            sequence,
+            quality,
+            length,
+        }))
+    }
+
+    fn __repr__<'py>(slf: PyRef<'py, Self>) -> PyResult<PyObject> {
+        let py = slf.py();
+        let format = pyo3::intern!(py, "format");
+        let args = PyList::empty_bound(py);
+        if let Some(id) = &slf.id {
+            args.append(pyo3::intern!(py, "id={!r}").call_method1(format, (id,))?)?;
+        }
+        if let Some(comment) = &slf.comment {
+            args.append(pyo3::intern!(py, "comment={!r}").call_method1(format, (comment,))?)?;
+        }
+        if let Some(sequence) = &slf.sequence {
+            args.append(pyo3::intern!(py, "sequence={!r}").call_method1(format, (sequence,))?)?;
+        }
+        if let Some(quality) = &slf.quality {
+            args.append(pyo3::intern!(py, "quality={!r}").call_method1(format, (quality,))?)?;
+        }
+        if let Some(length) = &slf.length {
+            args.append(format!("length={}", length).to_object(py))?;
+        }
+        pyo3::intern!(py, "Record({})")
+            .call_method1(
+                format,
+                (pyo3::intern!(py, ", ").call_method1("join", (args,))?,),
+            )
+            .map(|x| x.to_object(py))
+    }
 }
 
 impl pyo3::conversion::IntoPy<Record> for nafcodec::Record {
