@@ -15,6 +15,7 @@ mod reader;
 use self::ioslice::IoSlice;
 use self::reader::*;
 use super::Rc;
+use crate::data::Flag;
 use crate::data::Header;
 use crate::data::MaskUnit;
 use crate::data::Record;
@@ -90,7 +91,7 @@ impl DecoderBuilder {
             }
         };
 
-        if header.flags().has_title() {
+        if header.flags().test(Flag::Title) {
             let buf = reader.fill_buf()?;
             let (i, _title) = self::parser::title(buf)?;
             let consumed = buf.len() - i.len();
@@ -136,12 +137,18 @@ impl DecoderBuilder {
 
         let flags = header.flags();
         let mut seqlen = 0;
-        setup_block!(flags.has_ids(), true, rc, ids_block);
-        setup_block!(flags.has_comments(), true, rc, com_block);
-        setup_block!(flags.has_lengths(), true, rc, len_block);
-        setup_block!(flags.has_mask(), self.mask, rc, mask_block);
-        setup_block!(flags.has_sequence(), self.sequence, rc, seq_block, seqlen);
-        setup_block!(flags.has_quality(), self.quality, rc, quality_block);
+        setup_block!(flags.test(Flag::Ids), true, rc, ids_block);
+        setup_block!(flags.test(Flag::Comments), true, rc, com_block);
+        setup_block!(flags.test(Flag::Lengths), true, rc, len_block);
+        setup_block!(flags.test(Flag::Mask), self.mask, rc, mask_block);
+        setup_block!(
+            flags.test(Flag::Sequence),
+            self.sequence,
+            rc,
+            seq_block,
+            seqlen
+        );
+        setup_block!(flags.test(Flag::Quality), self.quality, rc, quality_block);
 
         Ok(Decoder {
             ids: ids_block.map(CStringReader::new),

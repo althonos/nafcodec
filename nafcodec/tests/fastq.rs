@@ -1,4 +1,5 @@
 use nafcodec::Decoder;
+use nafcodec::Flag;
 use nafcodec::SequenceType;
 
 #[test]
@@ -11,8 +12,8 @@ fn decode() {
     assert_eq!(decoder.header().name_separator(), ' ');
     assert_eq!(decoder.header().number_of_sequences(), 42);
     assert_eq!(decoder.header().sequence_type(), SequenceType::Dna);
-    assert!(decoder.header().flags().has_quality());
-    assert!(decoder.header().flags().has_sequence());
+    assert!(decoder.header().flags().test(Flag::Quality));
+    assert!(decoder.header().flags().test(Flag::Sequence));
 
     let r1 = decoder.next().unwrap().unwrap();
     assert_eq!(r1.id.unwrap(), "SRR1377138.1");

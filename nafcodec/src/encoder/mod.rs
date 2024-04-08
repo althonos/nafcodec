@@ -104,13 +104,14 @@ impl EncoderBuilder {
             header.format_version = FormatVersion::V2;
         }
 
-        header.flags = Flags::new(Flag::Ids | Flag::Comments);
+        header.flags.set(Flag::Ids);
+        header.flags.set(Flag::Comments);
         if self.sequence {
-            header.flags |= Flag::Sequence;
-            header.flags |= Flag::Lengths;
+            header.flags.set(Flag::Sequence);
+            header.flags.set(Flag::Lengths);
         }
         if self.quality {
-            header.flags |= Flag::Quality;
+            header.flags.set(Flag::Quality);
         }
 
         let ids = self.new_buffer(&storage)?;

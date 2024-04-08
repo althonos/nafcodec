@@ -69,6 +69,7 @@ impl SequenceType {
 
 /// The value of a single `Flag` inside header [`Flags`].
 #[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Flag {
     /// A flag indicating sequence qualities are stored in the archive.
     Quality = 0x1,
@@ -88,6 +89,27 @@ pub enum Flag {
     Extended = 0x80,
 }
 
+impl Flag {
+    /// Get all individual flags
+    pub const fn values() -> &'static [Self] {
+        &[
+            Flag::Quality,
+            Flag::Sequence,
+            Flag::Mask,
+            Flag::Lengths,
+            Flag::Comments,
+            Flag::Ids,
+            Flag::Title,
+            Flag::Extended,
+        ]
+    }
+
+    /// View the flag as a single byte mask.
+    pub const fn as_byte(&self) -> u8 {
+        *self as u8
+    }
+}
+
 impl BitAnd<Flag> for u8 {
     type Output = u8;
     fn bitand(self, rhs: Flag) -> Self::Output {
@@ -96,16 +118,9 @@ impl BitAnd<Flag> for u8 {
 }
 
 impl BitOr<Flag> for Flag {
-    type Output = u8;
+    type Output = Flags;
     fn bitor(self, rhs: Flag) -> Self::Output {
-        (self as u8).bitor(rhs)
-    }
-}
-
-impl BitOr<Flag> for u8 {
-    type Output = u8;
-    fn bitor(self, rhs: Flag) -> Self::Output {
-        self.bitor(rhs as u8)
+        Flags((self as u8).bitor(rhs as u8))
     }
 }
 
@@ -114,47 +129,35 @@ impl BitOr<Flag> for u8 {
 pub struct Flags(u8);
 
 impl Flags {
-    /// Create new `Flags` from the given value.
-    pub fn new(value: u8) -> Self {
-        Self(value)
+    /// Create new `Flags` with all flags unset.
+    pub fn new() -> Self {
+        Self(0)
     }
 
-    pub fn has_quality(&self) -> bool {
-        (self.0 & Flag::Quality) != 0
+    /// Check if the given flag is set.
+    pub fn test(&self, flag: Flag) -> bool {
+        (self.0 & flag as u8) != 0
     }
 
-    pub fn has_sequence(&self) -> bool {
-        (self.0 & Flag::Sequence) != 0
+    /// Set the given flag.
+    pub fn set(&mut self, flag: Flag) {
+        self.0 |= flag as u8;
     }
 
-    pub fn has_mask(&self) -> bool {
-        (self.0 & Flag::Mask) != 0
+    /// Unset the given flag.
+    pub fn unset(&mut self, flag: Flag) {
+        self.0 &= !(flag as u8);
     }
 
-    pub fn has_lengths(&self) -> bool {
-        (self.0 & Flag::Lengths) != 0
-    }
-
-    pub fn has_comments(&self) -> bool {
-        (self.0 & Flag::Comments) != 0
-    }
-
-    pub fn has_ids(&self) -> bool {
-        (self.0 & Flag::Ids) != 0
-    }
-
-    pub fn has_title(&self) -> bool {
-        (self.0 & Flag::Title) != 0
-    }
-
-    pub fn has_extended_format(&self) -> bool {
-        (self.0 & Flag::Extended) != 0
+    /// View the flags as a single byte.
+    pub const fn as_byte(&self) -> u8 {
+        self.0
     }
 }
 
 impl Default for Flags {
     fn default() -> Self {
-        Self::new(0)
+        Self::new()
     }
 }
 
@@ -173,7 +176,7 @@ impl BitOr<Flag> for Flags {
 
 impl BitOrAssign<Flag> for Flags {
     fn bitor_assign(&mut self, rhs: Flag) {
-        self.0 = self.0 | rhs;
+        self.0 = self.0 | rhs as u8;
     }
 }
 

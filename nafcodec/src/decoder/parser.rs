@@ -1,5 +1,6 @@
 use nom::IResult;
 
+use crate::data::Flag;
 use crate::data::Flags;
 use crate::data::FormatVersion;
 use crate::data::Header;
@@ -70,7 +71,15 @@ pub fn sequence_type(i: &[u8]) -> IResult<&[u8], SequenceType> {
 }
 
 pub fn flags(i: &[u8]) -> IResult<&[u8], Flags> {
-    self::byte(i).map(|(i, x)| (i, Flags::new(x)))
+    self::byte(i).map(|(i, x)| {
+        let mut flags = Flags::new();
+        for flag in Flag::values() {
+            if x & flag.as_byte() != 0 {
+                flags.set(*flag);
+            }
+        }
+        (i, flags)
+    })
 }
 
 pub fn name_separator(i: &[u8]) -> IResult<&[u8], char> {

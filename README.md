@@ -74,7 +74,7 @@ let mut decoder = nafcodec::DecoderBuilder::new()
     .expect("failed to open nucleotide archive");
 
 // the archive contains quality strings...
-assert!(decoder.header().flags().has_quality());
+assert!(decoder.header().flags().test(nafcodec::Flag::Quality));
 
 // ... but we configured the decoder to ignore them
 for result in decoder {

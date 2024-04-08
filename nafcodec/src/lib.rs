@@ -8,6 +8,7 @@ mod encoder;
 
 pub mod error;
 
+pub use self::data::Flag;
 pub use self::data::Flags;
 pub use self::data::FormatVersion;
 pub use self::data::Header;
