@@ -17,8 +17,10 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyUnicodeError;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use pyo3::types::PyList;
 use pyo3::types::PyString;
+use pyo3::PyTypeInfo;
 
 /// Convert a `nafcodec::error::Error` into a Python exception.
 fn convert_error(_py: Python, error: nafcodec::error::Error, path: Option<&str>) -> PyErr {
@@ -100,6 +102,30 @@ impl From<nafcodec::SequenceType> for SequenceType {
 impl From<SequenceType> for nafcodec::SequenceType {
     fn from(ty: SequenceType) -> Self {
         ty.0
+    }
+}
+
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum OpenMode {
+    Read,
+    Write,
+}
+
+impl<'py> FromPyObject<'py> for OpenMode {
+    fn extract(ob: &'py PyAny) -> PyResult<Self> {
+        let py = ob.py();
+        match ob.downcast::<PyString>()?.to_string_lossy().as_ref() {
+            "r" => Ok(OpenMode::Read),
+            "w" => Ok(OpenMode::Write),
+            other => {
+                let msg = PyString::new_bound(py, "expected 'r' or 'w', got {!r}")
+                    .call_method1("format", (other,))?
+                    .to_object(py);
+                Err(PyValueError::new_err(msg))
+            }
+        }
     }
 }
 
@@ -478,6 +504,25 @@ pub fn init<'py>(_py: Python<'py>, m: &Bound<'py, PyModule>) -> PyResult<()> {
     m.add_class::<Decoder>()?;
     m.add_class::<Encoder>()?;
     m.add_class::<Record>()?;
+
+    /// Open a Nucleotide Archive Format file.
+    #[pyfn(m)]
+    #[pyo3(signature = (file, mode = OpenMode::Read, **options))]
+    fn open<'py>(
+        file: &Bound<'py, PyAny>,
+        mode: OpenMode,
+        options: Option<&Bound<'py, PyDict>>,
+    ) -> PyResult<PyObject> {
+        let py = file.py();
+        match mode {
+            OpenMode::Read => Ok(Decoder::type_object_bound(py)
+                .call((file,), options)?
+                .to_object(py)),
+            OpenMode::Write => Ok(Encoder::type_object_bound(py)
+                .call((file,), options)?
+                .to_object(py)),
+        }
+    }
 
     Ok(())
 }

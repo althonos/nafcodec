@@ -4,6 +4,8 @@ from . import lib
 from .lib import (
     Decoder,
     Record,
+    Encoder,
+    open,
 )
 
 __author__ = lib.__author__

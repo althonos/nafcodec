@@ -1,6 +1,7 @@
 import os
 import typing
-from typing import Union, Iterator, Optional, BinaryIO
+from types import TracebackType
+from typing import Type, Union, Iterator, Optional, BinaryIO, ContextManager
 
 try:
     from typing import Literal
@@ -31,11 +32,18 @@ class Record:
     ): ...
     def __repr__(self) -> str: ...
 
-class Decoder(Iterator[Record]):
+class Decoder(Iterator[Record], ContextManager[Decoder]):
     def __init__(self, file: Union[str, os.PathLike[str], BinaryIO]) -> None: ...
     def __iter__(self) -> Decoder: ...
     def __next__(self) -> Record: ...
     def __len__(self) -> int: ...
+    def __enter__(self) -> Decoder: ...
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> bool: ...
     @property
     def sequence_type(self) -> SEQUENCE_TYPE: ...
     @property
@@ -46,3 +54,47 @@ class Decoder(Iterator[Record]):
     def name_separator(self) -> str: ...
     @property
     def number_of_sequences(self) -> int: ...
+    def read(self) -> Optional[Record]: ...
+
+class Encoder(ContextManager[Encoder]):
+    def __init__(
+        self,
+        file: Union[str, os.PathLike[str], BinaryIO],
+        sequence_type: SEQUENCE_TYPE = "dna",
+        *,
+        id: bool = True,
+        comment: bool = False,
+        sequence: bool = True,
+        quality: bool = False,
+    ): ...
+    def __enter__(self) -> Encoder: ...
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> bool: ...
+    def write(self, record: Record) -> None: ...
+    def close(self) -> None: ...
+
+@typing.overload
+def open(
+    file: Union[str, os.PathLike[str], BinaryIO],
+    mode: Literal["r"],
+    **options,
+) -> Decoder: ...
+
+@typing.overload
+def open(
+    file: Union[str, os.PathLike[str], BinaryIO],
+    mode: Literal["w"],
+    sequence_type: SEQUENCE_TYPE = "dna",
+    **options,
+) -> Encoder: ...
+
+@typing.overload
+def open(
+    file: Union[str, os.PathLike[str], BinaryIO],
+    mode: Literal["r", "w"] = "r",
+    **options,
+) -> Union[Decoder, Encoder]: ...
