@@ -45,6 +45,7 @@ fn write_length<W: Write>(mut l: u64, mut w: W) -> Result<(), IoError> {
 #[derive(Debug, Clone)]
 pub struct EncoderBuilder {
     sequence_type: SequenceType,
+    id: bool,
     sequence: bool,
     quality: bool,
     comment: bool,
@@ -56,6 +57,7 @@ impl EncoderBuilder {
     pub fn new(sequence_type: SequenceType) -> Self {
         Self {
             sequence_type,
+            id: true,
             quality: false,
             comment: false,
             sequence: true,
@@ -78,10 +80,18 @@ impl EncoderBuilder {
     pub fn from_flags<F: Into<Flags>>(sequence_type: SequenceType, flags: F) -> Self {
         let flags = flags.into();
         let mut builder = Self::new(sequence_type);
+        builder.id(flags.test(Flag::Id));
         builder.quality(flags.test(Flag::Quality));
         builder.sequence(flags.test(Flag::Sequence));
         builder.comment(flags.test(Flag::Comment));
         builder
+    }
+
+    /// Whether or not to encode the identifier of each record.
+    #[inline]
+    pub fn id(&mut self, id: bool) -> &mut Self {
+        self.id = id;
+        self
     }
 
     /// Whether or not to encode the comment of each record.
@@ -143,7 +153,9 @@ impl EncoderBuilder {
             header.format_version = FormatVersion::V2;
         }
 
-        header.flags.set(Flag::Id);
+        if self.id {
+            header.flags.set(Flag::Id);
+        }
         if self.comment {
             header.flags.set(Flag::Comment);
         }
@@ -155,8 +167,12 @@ impl EncoderBuilder {
             header.flags.set(Flag::Quality);
         }
 
-        let ids = self.new_buffer(&storage)?;
         let lens = self.new_buffer(&storage)?;
+        let id = if self.id {
+            Some(WriteCounter::new(self.new_buffer(&storage)?))
+        } else {
+            None
+        };
         let com = if self.comment {
             Some(WriteCounter::new(self.new_buffer(&storage)?))
         } else {
@@ -182,7 +198,7 @@ impl EncoderBuilder {
             seq,
             qual,
             com,
-            ids: WriteCounter::new(ids),
+            id,
             len: WriteCounter::new(lens),
         })
     }
@@ -198,7 +214,7 @@ impl EncoderBuilder {
 pub struct Encoder<'z, S: Storage> {
     header: Header,
     storage: S,
-    ids: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
+    id: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
     len: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     com: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
     seq: Option<WriteCounter<SequenceWriter<zstd::Encoder<'z, S::Buffer>>>>,
@@ -223,11 +239,13 @@ impl<S: Storage> Encoder<'_, S> {
     }
 
     pub fn push(&mut self, record: &Record) -> Result<(), IoError> {
-        if let Some(id) = record.id.as_ref() {
-            self.ids.write_all(id.as_bytes())?;
-            self.ids.write_all(b"\0")?;
-        } else {
-            panic!("missing ids")
+        if let Some(id_writer) = self.id.as_mut() {
+            if let Some(id) = record.id.as_ref() {
+                id_writer.write_all(id.as_bytes())?;
+                id_writer.write_all(b"\0")?;
+            } else {
+                panic!("missing ids")
+            }
         }
 
         if let Some(com_writer) = self.com.as_mut() {
@@ -290,13 +308,15 @@ impl<S: Storage> Encoder<'_, S> {
 
         // -- ids ---
 
-        let og_ids = self.ids.len() as u64;
-        let mut ids_buffer = self.ids.into_inner().finish()?;
-        ids_buffer.flush()?;
+        if let Some(id_writer) = self.id {
+            let og_ids = id_writer.len() as u64;
+            let mut ids_buffer = id_writer.into_inner().finish()?;
+            ids_buffer.flush()?;
 
-        write_variable_length(og_ids, &mut file)?;
-        write_variable_length(self.storage.buffer_length(&ids_buffer)? as u64, &mut file)?;
-        self.storage.write_buffer(ids_buffer, &mut file)?;
+            write_variable_length(og_ids, &mut file)?;
+            write_variable_length(self.storage.buffer_length(&ids_buffer)? as u64, &mut file)?;
+            self.storage.write_buffer(ids_buffer, &mut file)?;
+        }
 
         // -- com ---
 
