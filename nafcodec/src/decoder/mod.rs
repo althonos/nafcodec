@@ -43,10 +43,11 @@ type ZstdDecoder<'z, R> = BufReader<zstd::Decoder<'z, BufReader<IoSlice<R>>>>;
 #[derive(Debug, Clone)]
 pub struct DecoderBuilder {
     buffer_size: usize,
-    quality: bool,
-    sequence: bool,
-    mask: bool,
+    id: bool,
     comment: bool,
+    sequence: bool,
+    quality: bool,
+    mask: bool,
 }
 
 impl DecoderBuilder {
@@ -57,10 +58,11 @@ impl DecoderBuilder {
     pub fn new() -> Self {
         Self {
             buffer_size: 4096,
-            quality: true,
-            sequence: true,
-            mask: true,
+            id: true,
             comment: true,
+            sequence: true,
+            quality: true,
+            mask: true,
         }
     }
 
@@ -101,25 +103,36 @@ impl DecoderBuilder {
         self
     }
 
+    /// Whether or not to decode the sequence identifiers if available.
+    #[inline]
+    pub fn id(&mut self, id: bool) -> &mut Self {
+        self.id = id;
+        self
+    }
+
     /// Whether or not to decode the sequence comment if available.
+    #[inline]
     pub fn comment(&mut self, comment: bool) -> &mut Self {
         self.comment = comment;
         self
     }
 
     /// Whether or not to decode the sequence string if available.
+    #[inline]
     pub fn sequence(&mut self, sequence: bool) -> &mut Self {
         self.sequence = sequence;
         self
     }
 
     /// Whether or not to decode the quality string if available.
+    #[inline]
     pub fn quality(&mut self, quality: bool) -> &mut Self {
         self.quality = quality;
         self
     }
 
     /// Whether or not to perform region masking in the output sequence.
+    #[inline]
     pub fn mask(&mut self, mask: bool) -> &mut Self {
         self.mask = mask;
         self
@@ -167,13 +180,13 @@ impl DecoderBuilder {
 
         let rc = Rc::new(RwLock::new(reader));
         macro_rules! setup_block {
-            ($flag:expr, $use_block:expr, $rc:ident, $block:ident) => {
+            ($flags:expr, $flag:ident, $use_block:expr, $rc:ident, $block:ident) => {
                 let _length: u64;
-                setup_block!($flag, $use_block, $rc, $block, _length);
+                setup_block!($flags, $flag, $use_block, $rc, $block, _length);
             };
-            ($flag:expr, $use_block:expr, $rc:ident, $block:ident, $block_length:ident) => {
+            ($flags:expr, $flag:ident, $use_block:expr, $rc:ident, $block:ident, $block_length:ident) => {
                 let $block;
-                if $flag {
+                if $flags.test(Flag::$flag) {
                     // create a local copy of the reader that we can access
                     let tee = $rc.clone();
                     let mut handle = $rc.write().unwrap();
@@ -204,18 +217,12 @@ impl DecoderBuilder {
 
         let flags = header.flags();
         let mut seqlen = 0;
-        setup_block!(flags.test(Flag::Id), true, rc, ids_block);
-        setup_block!(flags.test(Flag::Comment), true, rc, com_block);
-        setup_block!(flags.test(Flag::Length), true, rc, len_block);
-        setup_block!(flags.test(Flag::Mask), self.mask, rc, mask_block);
-        setup_block!(
-            flags.test(Flag::Sequence),
-            self.sequence,
-            rc,
-            seq_block,
-            seqlen
-        );
-        setup_block!(flags.test(Flag::Quality), self.quality, rc, quality_block);
+        setup_block!(flags, Id, self.id, rc, ids_block);
+        setup_block!(flags, Comment, self.comment, rc, com_block);
+        setup_block!(flags, Length, true, rc, len_block);
+        setup_block!(flags, Mask, self.mask, rc, mask_block);
+        setup_block!(flags, Sequence, self.sequence, rc, seq_block, seqlen);
+        setup_block!(flags, Quality, self.quality, rc, quality_block);
 
         Ok(Decoder {
             ids: ids_block.map(CStringReader::new),
