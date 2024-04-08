@@ -64,8 +64,10 @@ fn mask() {
 
 #[test]
 fn force_nomask() {
-    let c = std::io::Cursor::new(MASKED);
-    let mut decoder = DecoderBuilder::new().mask(false).with_reader(c).unwrap();
+    let mut decoder = DecoderBuilder::new()
+        .mask(false)
+        .with_bytes(MASKED)
+        .unwrap();
 
     assert_eq!(decoder.header().name_separator(), ' ');
     assert_eq!(decoder.header().number_of_sequences(), 2);

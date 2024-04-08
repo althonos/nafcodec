@@ -54,8 +54,7 @@ fn decode() {
 
 #[test]
 fn decode_no_id() {
-    let c = std::io::Cursor::new(ARCHIVE);
-    let mut decoder = DecoderBuilder::new().id(false).with_reader(c).unwrap();
+    let mut decoder = DecoderBuilder::new().id(false).with_bytes(ARCHIVE).unwrap();
     check_header_flags(decoder.header());
 
     let r1 = decoder.next().unwrap().unwrap();
@@ -69,10 +68,9 @@ fn decode_no_id() {
 
 #[test]
 fn decode_no_seq() {
-    let c = std::io::Cursor::new(ARCHIVE);
     let mut decoder = DecoderBuilder::new()
         .sequence(false)
-        .with_reader(c)
+        .with_bytes(ARCHIVE)
         .unwrap();
     check_header_flags(decoder.header());
 
@@ -87,8 +85,10 @@ fn decode_no_seq() {
 
 #[test]
 fn decode_no_comment() {
-    let c = std::io::Cursor::new(ARCHIVE);
-    let mut decoder = DecoderBuilder::new().comment(false).with_reader(c).unwrap();
+    let mut decoder = DecoderBuilder::new()
+        .comment(false)
+        .with_bytes(ARCHIVE)
+        .unwrap();
     check_header_flags(decoder.header());
 
     let r1 = decoder.next().unwrap().unwrap();
@@ -102,8 +102,10 @@ fn decode_no_comment() {
 
 #[test]
 fn decode_no_quality() {
-    let c = std::io::Cursor::new(ARCHIVE);
-    let mut decoder = DecoderBuilder::new().quality(false).with_reader(c).unwrap();
+    let mut decoder = DecoderBuilder::new()
+        .quality(false)
+        .with_bytes(ARCHIVE)
+        .unwrap();
     check_header_flags(decoder.header());
 
     let r1 = decoder.next().unwrap().unwrap();

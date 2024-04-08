@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::io::Cursor;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::iter::FusedIterator;
@@ -139,6 +140,14 @@ impl DecoderBuilder {
     pub fn mask(&mut self, mask: bool) -> &mut Self {
         self.mask = mask;
         self
+    }
+
+    /// Consume the builder to get a decoder reading data from the given buffer.
+    pub fn with_bytes<'data, 'z>(
+        &self,
+        bytes: &'data [u8],
+    ) -> Result<Decoder<'z, BufReader<Cursor<&'data [u8]>>>, Error> {
+        self.with_reader(BufReader::new(Cursor::new(bytes)))
     }
 
     /// Consume the builder to get a decoder reading a file at the given path.
