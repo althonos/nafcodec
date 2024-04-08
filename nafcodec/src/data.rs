@@ -39,6 +39,7 @@ pub struct Record {
     pub length: Option<u64>,
 }
 
+/// The supported format versions inside NAF archives.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum FormatVersion {
     #[default]
@@ -67,7 +68,7 @@ impl SequenceType {
     }
 }
 
-/// The value of a single `Flag` inside header [`Flags`].
+/// A single flag inside header flags.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Flag {
@@ -90,7 +91,7 @@ pub enum Flag {
 }
 
 impl Flag {
-    /// Get all individual flags
+    /// Get all individual flags.
     pub const fn values() -> &'static [Self] {
         &[
             Flag::Quality,
@@ -107,13 +108,6 @@ impl Flag {
     /// View the flag as a single byte mask.
     pub const fn as_byte(&self) -> u8 {
         *self as u8
-    }
-}
-
-impl BitAnd<Flag> for u8 {
-    type Output = u8;
-    fn bitand(self, rhs: Flag) -> Self::Output {
-        self.bitand(rhs as u8)
     }
 }
 

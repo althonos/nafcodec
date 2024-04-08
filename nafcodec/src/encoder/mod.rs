@@ -51,7 +51,7 @@ pub struct EncoderBuilder {
     sequence_type: SequenceType,
     sequence: bool,
     quality: bool,
-    comments: bool,
+    comment: bool,
     compression_level: i32,
 }
 
@@ -61,31 +61,35 @@ impl EncoderBuilder {
         Self {
             sequence_type,
             quality: false,
-            comments: false,
+            comment: false,
             sequence: true,
             compression_level: 0,
         }
     }
 
-    /// Whether or not to encode the comments of records.
-    pub fn comments(&mut self, comments: bool) -> &mut Self {
-        self.comments = comments;
+    /// Whether or not to encode the comment of each record.
+    pub fn comment(&mut self, comment: bool) -> &mut Self {
+        self.comment = comment;
         self
     }
 
-    /// Whether or not to encode the sequence of records.
+    /// Whether or not to encode the sequence of each record.
     pub fn sequence(&mut self, sequence: bool) -> &mut Self {
         self.sequence = sequence;
         self
     }
 
-    /// Whether or not to decode the quality of records.
+    /// Whether or not to decode the quality of each record.
     pub fn quality(&mut self, quality: bool) -> &mut Self {
         self.quality = quality;
         self
     }
 
-    /// The compression level to use for `zstd` compression
+    /// The compression level to use for `zstd` compression.
+    ///
+    /// Pass `0` to use the default `zstd` value, otherwise any
+    /// integer in range 1-22. See [`zstd::stream::write::Encoder`]
+    /// for more information.
     pub fn compression_level(&mut self, level: i32) -> &mut Self {
         self.compression_level = level;
         self
@@ -113,7 +117,7 @@ impl EncoderBuilder {
         }
 
         header.flags.set(Flag::Ids);
-        if self.comments {
+        if self.comment {
             header.flags.set(Flag::Comments);
         }
         if self.sequence {
@@ -126,7 +130,7 @@ impl EncoderBuilder {
 
         let ids = self.new_buffer(&storage)?;
         let lens = self.new_buffer(&storage)?;
-        let com = if self.comments {
+        let com = if self.comment {
             Some(WriteCounter::new(self.new_buffer(&storage)?))
         } else {
             None

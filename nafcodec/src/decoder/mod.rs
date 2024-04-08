@@ -25,7 +25,7 @@ use crate::error::Error;
 /// The wrapper used to decode Zstandard stream.
 type ZstdDecoder<'z, R> = BufReader<zstd::Decoder<'z, BufReader<IoSlice<R>>>>;
 
-/// A builder to configure and initialize a [`Decoder`](./struct.Decoder.html).
+/// A builder to configure and initialize a [`Decoder`].
 ///
 /// Use the provided methods to avoid decoding uneeded fields. For instance,
 /// to read a nucleotide archive and only extract sequences names:
@@ -45,20 +45,25 @@ pub struct DecoderBuilder {
     quality: bool,
     sequence: bool,
     mask: bool,
+    comment: bool,
 }
 
 impl DecoderBuilder {
     /// Create a new decoder builder with default parameters.
+    ///
+    /// By default, all fields are extracted if they are available in
+    /// the header.
     pub fn new() -> Self {
         Self {
             buffer_size: 4096,
             quality: true,
             sequence: true,
             mask: true,
+            comment: true,
         }
     }
 
-    /// Build a decoder with this configuration that reads data from the given file path.
+    /// Build a decoder with this configuration that reads a file at the given path.
     pub fn from_path<'z, P: AsRef<Path>>(
         &self,
         path: P,
@@ -166,11 +171,19 @@ impl DecoderBuilder {
 
     /// The buffer size to use while reading.
     ///
-    /// Note that `Decoder` uses a lot of buffered I/O, and that more than
+    /// Note that [`Decoder`] uses a lot of buffered I/O, and that more than
     /// one buffer will be created. Nevertheless, a higher value will reduce
     /// the necessity to seek the reader while reading the different blocks.
+    ///
+    /// By default, a buffer size of 4KiB is used for each internal buffer.
     pub fn buffer_size(&mut self, buffer_size: usize) -> &mut Self {
         self.buffer_size = buffer_size;
+        self
+    }
+
+    /// Whether or not to decode the sequence comment if available.
+    pub fn comment(&mut self, comment: bool) -> &mut Self {
+        self.comment = comment;
         self
     }
 
