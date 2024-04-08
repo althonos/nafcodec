@@ -5,10 +5,12 @@ mod counter;
 mod storage;
 mod writer;
 
-use self::counter::WriteCounter;
 pub use self::storage::Memory;
 pub use self::storage::Storage;
+
+use self::counter::WriteCounter;
 use self::writer::SequenceWriter;
+use crate::error::Error;
 
 use crate::data::Flag;
 use crate::data::Flags;
@@ -138,12 +140,12 @@ impl EncoderBuilder {
 
     /// Consume the builder to get an encoder using in-memory storage.
     #[inline]
-    pub fn with_memory<'z>(&self) -> Result<Encoder<'z, Memory>, IoError> {
+    pub fn with_memory<'z>(&self) -> Result<Encoder<'z, Memory>, Error> {
         self.with_storage(Memory)
     }
 
     /// Consume the builder to get an encoder using the given storage.
-    pub fn with_storage<'z, S: Storage>(&self, storage: S) -> Result<Encoder<'z, S>, IoError> {
+    pub fn with_storage<'z, S: Storage>(&self, storage: S) -> Result<Encoder<'z, S>, Error> {
         let mut header = Header::default();
 
         header.sequence_type = self.sequence_type;
@@ -229,17 +231,17 @@ impl Encoder<'_, Memory> {
     /// Use [`Encoder::from_storage`] to specificy a different storage type,
     /// such as a [`tempfile::TempDir`] to store the temporary compressed
     /// blocks into a temporary directory.
-    pub fn new(sequence_type: SequenceType) -> Result<Self, IoError> {
+    pub fn new(sequence_type: SequenceType) -> Result<Self, Error> {
         Self::from_storage(sequence_type, Default::default())
     }
 }
 
 impl<S: Storage> Encoder<'_, S> {
-    pub fn from_storage(sequence_type: SequenceType, storage: S) -> Result<Self, IoError> {
+    pub fn from_storage(sequence_type: SequenceType, storage: S) -> Result<Self, Error> {
         EncoderBuilder::new(sequence_type).with_storage(storage)
     }
 
-    pub fn push(&mut self, record: &Record) -> Result<(), IoError> {
+    pub fn push(&mut self, record: &Record) -> Result<(), Error> {
         if let Some(id_writer) = self.id.as_mut() {
             if let Some(id) = record.id.as_ref() {
                 id_writer.write_all(id.as_bytes())?;
@@ -285,7 +287,7 @@ impl<S: Storage> Encoder<'_, S> {
         Ok(())
     }
 
-    pub fn write<W: Write>(self, mut file: W) -> Result<(), IoError> {
+    pub fn write<W: Write>(self, mut file: W) -> Result<(), Error> {
         // --- header ---
         file.write_all(&[0x01, 0xF9, 0xEC])?; // format descriptor
 
@@ -309,61 +311,29 @@ impl<S: Storage> Encoder<'_, S> {
 
         // -- ids ---
 
-        if let Some(id_writer) = self.id {
-            let og_ids = id_writer.len() as u64;
-            let mut ids_buffer = id_writer.into_inner().finish()?;
-            ids_buffer.flush()?;
+        macro_rules! write_block {
+            ($field:expr) => {
+                write_block!($field, |x| Result::<_, Error>::Ok(x))
+            };
+            ($field:expr, $getbuffer:expr) => {
+                if let Some(writer) = $field {
+                    let uncompressed_length = writer.len() as u64;
+                    let mut buffer = $getbuffer(writer.into_inner())?.finish()?;
+                    buffer.flush()?;
+                    let compressed_length = self.storage.buffer_length(&buffer)?;
 
-            write_variable_length(og_ids, &mut file)?;
-            write_variable_length(self.storage.buffer_length(&ids_buffer)? as u64, &mut file)?;
-            self.storage.write_buffer(ids_buffer, &mut file)?;
+                    write_variable_length(uncompressed_length, &mut file)?;
+                    write_variable_length(compressed_length as u64, &mut file)?;
+                    self.storage.write_buffer(buffer, &mut file)?;
+                }
+            };
         }
 
-        // -- com ---
-
-        if let Some(com_writer) = self.com {
-            let og_com = com_writer.len() as u64;
-            let mut com_buffer = com_writer.into_inner().finish()?;
-            com_buffer.flush()?;
-
-            write_variable_length(og_com, &mut file)?;
-            write_variable_length(self.storage.buffer_length(&com_buffer)? as u64, &mut file)?;
-            self.storage.write_buffer(com_buffer, &mut file)?;
-        }
-
-        // -- lengths --
-
-        let og_lens = self.len.len() as u64;
-        let mut len_buffer = self.len.into_inner().finish()?;
-        len_buffer.flush()?;
-
-        write_variable_length(og_lens, &mut file)?;
-        write_variable_length(self.storage.buffer_length(&len_buffer)? as u64, &mut file)?;
-        self.storage.write_buffer(len_buffer, &mut file)?;
-
-        // -- seq --
-
-        if let Some(seq_writer) = self.seq {
-            let og_seqs = seq_writer.len() as u64;
-            let mut seq_buffer = seq_writer.into_inner().into_inner()?.finish()?;
-            seq_buffer.flush()?;
-
-            write_variable_length(og_seqs, &mut file)?;
-            write_variable_length(self.storage.buffer_length(&seq_buffer)? as u64, &mut file)?;
-            self.storage.write_buffer(seq_buffer, &mut file)?;
-        }
-
-        // -- qual --
-
-        if let Some(qual_writer) = self.qual {
-            let og_qual = qual_writer.len() as u64;
-            let mut qual_buffer = qual_writer.into_inner().finish()?;
-            qual_buffer.flush()?;
-
-            write_variable_length(og_qual, &mut file)?;
-            write_variable_length(self.storage.buffer_length(&qual_buffer)? as u64, &mut file)?;
-            self.storage.write_buffer(qual_buffer, &mut file)?;
-        }
+        write_block!(self.id);
+        write_block!(self.com);
+        write_block!(Some(self.len));
+        write_block!(self.seq, |f: SequenceWriter<_>| f.into_inner());
+        write_block!(self.qual);
 
         file.flush()?;
         Ok(())
