@@ -182,7 +182,7 @@ pub struct Decoder {
 #[pymethods]
 impl Decoder {
     #[new]
-    fn __init__<'py>(file: Bound<'py, PyAny>) -> PyResult<PyClassInitializer<Self>> {
+    pub fn __init__<'py>(file: Bound<'py, PyAny>) -> PyResult<PyClassInitializer<Self>> {
         let py = file.py();
         let decoder = match PyFileRead::from_ref(&file) {
             Ok(handle) => {
@@ -208,11 +208,11 @@ impl Decoder {
         Ok(Decoder { decoder }.into())
     }
 
-    fn __iter__(slf: PyRefMut<'_, Self>) -> PyResult<PyRefMut<'_, Self>> {
+    pub fn __iter__(slf: PyRefMut<'_, Self>) -> PyResult<PyRefMut<'_, Self>> {
         Ok(slf)
     }
 
-    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Record>> {
+    pub fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Record>> {
         let result = slf.deref_mut().decoder.next().transpose();
         let py = slf.py();
         match result {
@@ -222,15 +222,46 @@ impl Decoder {
         }
     }
 
+    /// `str`: The type of sequence stored in the archive.
     #[getter]
-    fn sequence_type(slf: PyRef<'_, Self>) -> &str {
+    pub fn sequence_type(slf: PyRef<'_, Self>) -> &Bound<'_, PyString> {
         use nafcodec::SequenceType;
+        let py = slf.py();
         match slf.decoder.sequence_type() {
-            SequenceType::Dna => "dna",
-            SequenceType::Rna => "rna",
-            SequenceType::Protein => "protein",
-            SequenceType::Text => "text",
+            SequenceType::Dna => pyo3::intern!(py, "dna"),
+            SequenceType::Rna => pyo3::intern!(py, "rna"),
+            SequenceType::Protein => pyo3::intern!(py, "protein"),
+            SequenceType::Text => pyo3::intern!(py, "text"),
         }
+    }
+
+    /// `str`: The length of sequence lines in the original FASTA file.
+    #[getter]
+    pub fn format_version(slf: PyRef<'_, Self>) -> &Bound<'_, PyString> {
+        use nafcodec::FormatVersion;
+        let py = slf.py();
+        match slf.decoder.header().format_version() {
+            FormatVersion::V1 => pyo3::intern!(py, "v1"),
+            FormatVersion::V2 => pyo3::intern!(py, "v2"),
+        }
+    }
+
+    /// `int`: The length of sequence lines in the original FASTA file.
+    #[getter]
+    pub fn line_length(slf: PyRef<'_, Self>) -> u64 {
+        slf.decoder.header().line_length()
+    }
+
+    /// `str`: The separator between sequence identifiers and comments.
+    #[getter]
+    pub fn name_separator(slf: PyRef<'_, Self>) -> char {
+        slf.decoder.header().name_separator()
+    }
+
+    /// `int`: The total number of sequences stored in the archive.
+    #[getter]
+    pub fn number_of_sequences(slf: PyRef<'_, Self>) -> u64 {
+        slf.decoder.header().number_of_sequences()
     }
 }
 
