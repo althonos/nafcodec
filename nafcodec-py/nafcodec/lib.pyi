@@ -28,7 +28,7 @@ class Record:
         comment: Optional[str] = None,
         sequence: Optional[str] = None,
         quality: Optional[str] = None,
-        length: Optional[int] = None
+        length: Optional[int] = None,
     ): ...
     def __repr__(self) -> str: ...
 
@@ -83,7 +83,6 @@ def open(
     mode: Literal["r"],
     **options,
 ) -> Decoder: ...
-
 @typing.overload
 def open(
     file: Union[str, os.PathLike[str], BinaryIO],
@@ -91,7 +90,6 @@ def open(
     sequence_type: SEQUENCE_TYPE = "dna",
     **options,
 ) -> Encoder: ...
-
 @typing.overload
 def open(
     file: Union[str, os.PathLike[str], BinaryIO],

@@ -203,43 +203,98 @@ impl PyFileWrite {
     }
 }
 
+impl Write for PyFileWrite {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        Python::with_gil(|py| {
+            // prepare a `memoryview` to expose the buffer
+            let memview = unsafe {
+                let m = pyo3::ffi::PyMemoryView_FromMemory(
+                    buf.as_ptr() as *mut i8,
+                    buf.len() as isize,
+                    pyo3::ffi::PyBUF_READ,
+                );
+                PyObject::from_owned_ptr_or_err(py, m)?
+            };
+            // write the buffer contents to the file
+            match self
+                .file
+                .bind(py)
+                .call_method1(pyo3::intern!(py, "write"), (memview,))
+            {
+                Err(e) => {
+                    transmute_file_error!(self, e, "write method failed", py)
+                }
+                Ok(obj) => {
+                    if let Ok(n) = obj.extract::<usize>() {
+                        Ok(n)
+                    } else {
+                        let ty = obj.get_type().name()?.to_string();
+                        let msg = format!("expected int, found {}", ty);
+                        PyTypeError::new_err(msg).restore(py);
+                        Err(IoError::new(
+                            std::io::ErrorKind::Other,
+                            "readinto method did not return int",
+                        ))
+                    }
+                }
+            }
+        })
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Python::with_gil(
+            |py| match self.file.bind(py).call_method0(pyo3::intern!(py, "flush")) {
+                Ok(_) => Ok(()),
+                Err(e) => transmute_file_error!(self, e, "flush method failed", py),
+            },
+        )
+    }
+}
+
 // ---------------------------------------------------------------------------
 
-pub enum PyFileWrapper {
+pub enum PyFileReadWrapper {
     PyFile(PyFileRead),
     File(File),
 }
 
-impl Read for PyFileWrapper {
+impl Read for PyFileReadWrapper {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
         match self {
-            PyFileWrapper::PyFile(r) => r.read(buf),
-            PyFileWrapper::File(f) => f.read(buf),
+            PyFileReadWrapper::PyFile(r) => r.read(buf),
+            PyFileReadWrapper::File(f) => f.read(buf),
         }
     }
 }
 
-impl Seek for PyFileWrapper {
+impl Seek for PyFileReadWrapper {
     fn seek(&mut self, seek: SeekFrom) -> Result<u64, IoError> {
         match self {
-            PyFileWrapper::PyFile(r) => r.seek(seek),
-            PyFileWrapper::File(f) => f.seek(seek),
+            PyFileReadWrapper::PyFile(r) => r.seek(seek),
+            PyFileReadWrapper::File(f) => f.seek(seek),
         }
     }
 }
 
-impl Write for PyFileWrapper {
+// ---------------------------------------------------------------------------
+
+pub enum PyFileWriteWrapper {
+    PyFile(PyFileWrite),
+    File(File),
+}
+
+impl Write for PyFileWriteWrapper {
     fn write(&mut self, buf: &[u8]) -> Result<usize, IoError> {
         match self {
-            PyFileWrapper::PyFile(w) => unimplemented!(),
-            PyFileWrapper::File(f) => f.write(buf),
+            PyFileWriteWrapper::PyFile(f) => f.write(buf),
+            PyFileWriteWrapper::File(f) => f.write(buf),
         }
     }
 
     fn flush(&mut self) -> Result<(), IoError> {
         match self {
-            PyFileWrapper::PyFile(w) => unimplemented!(),
-            PyFileWrapper::File(f) => f.flush(),
+            PyFileWriteWrapper::PyFile(f) => f.flush(),
+            PyFileWriteWrapper::File(f) => f.flush(),
         }
     }
 }

@@ -5,9 +5,13 @@ extern crate pyo3;
 
 mod pyfile;
 use self::pyfile::PyFileRead;
-use self::pyfile::PyFileWrapper;
+use self::pyfile::PyFileReadWrapper;
+use self::pyfile::PyFileWrite;
+use self::pyfile::PyFileWriteWrapper;
 
+use std::io::BufRead;
 use std::io::BufReader;
+use std::io::Seek;
 use std::ops::DerefMut;
 
 use pyo3::exceptions::PyFileNotFoundError;
@@ -298,7 +302,7 @@ impl TryFrom<&Record> for nafcodec::Record {
 /// A streaming decoder to read a Nucleotide Archive Format file.
 #[pyclass(module = "nafcodec")]
 pub struct Decoder {
-    decoder: nafcodec::Decoder<'static, BufReader<PyFileWrapper>>,
+    decoder: nafcodec::Decoder<'static, BufReader<PyFileReadWrapper>>,
 }
 
 #[pymethods]
@@ -308,7 +312,7 @@ impl Decoder {
         let py = file.py();
         let decoder = match PyFileRead::from_ref(&file) {
             Ok(handle) => {
-                let wrapper = PyFileWrapper::PyFile(handle);
+                let wrapper = PyFileReadWrapper::PyFile(handle);
                 nafcodec::Decoder::new(std::io::BufReader::new(wrapper))
                     .map_err(|e| convert_error(py, e, None))?
             }
@@ -321,7 +325,7 @@ impl Decoder {
                 let reader = std::fs::File::open(path_str)
                     .map_err(nafcodec::error::Error::Io)
                     .map_err(|e| convert_error(py, e, Some(path_str)))
-                    .map(PyFileWrapper::File)?;
+                    .map(PyFileReadWrapper::File)?;
                 nafcodec::Decoder::new(std::io::BufReader::new(reader))
                     .map_err(|e| convert_error(py, e, Some(path_str)))?
             }
@@ -418,7 +422,7 @@ impl Decoder {
 #[pyclass(module = "nafcodec")]
 pub struct Encoder {
     encoder: Option<nafcodec::Encoder<'static, nafcodec::Memory>>,
-    file: PyFileWrapper,
+    file: PyFileWriteWrapper,
 }
 
 #[pymethods]
@@ -444,8 +448,8 @@ impl Encoder {
         compression_level: i32,
     ) -> PyResult<PyClassInitializer<Self>> {
         let py = file.py();
-        let file = match PyFileRead::from_ref(&file) {
-            Ok(handle) => PyFileWrapper::PyFile(handle),
+        let file = match PyFileWrite::from_ref(&file) {
+            Ok(handle) => PyFileWriteWrapper::PyFile(handle),
             Err(_e) => {
                 let path = py
                     .import_bound("os")?
@@ -455,7 +459,7 @@ impl Encoder {
                 std::fs::File::create(path_str)
                     .map_err(nafcodec::error::Error::Io)
                     .map_err(|e| convert_error(py, e, Some(path_str)))
-                    .map(PyFileWrapper::File)?
+                    .map(PyFileWriteWrapper::File)?
             }
         };
         let encoder = nafcodec::EncoderBuilder::new(sequence_type.0)
