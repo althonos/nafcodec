@@ -196,8 +196,12 @@ impl Default for DecoderBuilder {
 ///
 /// The internal reader is shared and accessed non-sequentially to read the
 /// different block components of the archive. This means that the internal
-/// file heavily make use of [`seek`](https://doc.rust-lang.org/std/io/trait.Seek.html#tymethod.seek),
-/// so make sure that the actual type has a fast seeking implementation.
+/// file heavily make use of [`Seek::seek`], so make sure that the actual
+/// type has a fast seeking implementation.
+///
+/// By default, the decoder will decode all available fields, which may not
+/// be needed. Use a [`DecoderBuilder`] to configure decoding of individual
+/// fields.
 ///
 /// # Thread safety
 ///
@@ -206,21 +210,17 @@ impl Default for DecoderBuilder {
 /// the crate with the *arc* feature to use [`Arc`] instead of [`Rc`], making
 /// the decoder [`Send`].
 ///
-/// [`Send`]: https://doc.rust-lang.org/nightly/std/marker/trait.Send.html
 /// [`Rc`]: https://doc.rust-lang.org/nightly/std/rc/struct.Rc.html
 /// [`Arc`]: https://doc.rust-lang.org/nightly/std/sync/struct.Arc.html
 pub struct Decoder<'z, R: BufRead + Seek> {
     header: Header,
-
     reader: Rc<RwLock<R>>,
-
     ids: Option<CStringReader<ZstdDecoder<'z, R>>>,
     com: Option<CStringReader<ZstdDecoder<'z, R>>>,
     len: Option<LengthReader<ZstdDecoder<'z, R>>>,
     seq: Option<SequenceReader<ZstdDecoder<'z, R>>>,
     qual: Option<SequenceReader<ZstdDecoder<'z, R>>>,
     mask: Option<MaskReader<ZstdDecoder<'z, R>>>,
-
     n: usize,
     unit: MaskUnit,
 }

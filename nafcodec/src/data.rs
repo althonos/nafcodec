@@ -67,15 +67,24 @@ impl SequenceType {
     }
 }
 
+/// The value of a single `Flag` inside header [`Flags`].
 #[repr(u8)]
 pub enum Flag {
+    /// A flag indicating sequence qualities are stored in the archive.
     Quality = 0x1,
+    /// A flag indicating sequences are stored in the archive.
     Sequence = 0x2,
+    /// A flag indicating sequence masks are stored in the archive.
     Mask = 0x4,
+    /// A flag indicating sequence lengths are stored in the archive.
     Lengths = 0x8,
+    /// A flag indicating sequence comments are stored in the archive.
     Comments = 0x10,
+    /// A flag indicating sequence identifiers are stored in the archive.
     Ids = 0x20,
+    /// A flag indicating the archive has a title.
     Title = 0x40,
+    /// A flag reserved for future extension of the format.
     Extended = 0x80,
 }
 
@@ -100,10 +109,12 @@ impl BitOr<Flag> for u8 {
     }
 }
 
+/// The flags for optional content blocks inside a NAF archive.
 #[derive(Debug, Clone, Copy)]
 pub struct Flags(u8);
 
 impl Flags {
+    /// Create new `Flags` from the given value.
     pub fn new(value: u8) -> Self {
         Self(value)
     }
@@ -147,9 +158,9 @@ impl Default for Flags {
     }
 }
 
-impl Into<u8> for Flags {
-    fn into(self) -> u8 {
-        self.0
+impl From<Flags> for u8 {
+    fn from(flags: Flags) -> Self {
+        flags.0
     }
 }
 
@@ -183,26 +194,32 @@ pub struct Header {
 }
 
 impl Header {
+    /// Get the flags of the archive header.
     pub fn flags(&self) -> Flags {
         self.flags
     }
 
+    /// Get the default line length stored in the archive.
     pub fn line_length(&self) -> u64 {
         self.line_length
     }
 
+    /// Get the name separator used in the archive.
     pub fn name_separator(&self) -> char {
         self.name_separator
     }
 
+    /// Get the number of sequences stored in the archive.
     pub fn number_of_sequences(&self) -> u64 {
         self.number_of_sequences
     }
 
+    /// Get the type of sequences stored in the archive.
     pub fn sequence_type(&self) -> SequenceType {
         self.sequence_type
     }
 
+    /// Get the archive format version.
     pub fn format_version(&self) -> FormatVersion {
         self.format_version
     }
@@ -211,7 +228,7 @@ impl Header {
 impl Default for Header {
     fn default() -> Self {
         Header {
-            format_version: FormatVersion::V2,
+            format_version: FormatVersion::V1,
             sequence_type: SequenceType::Dna,
             flags: Flags::default(),
             name_separator: ' ',
