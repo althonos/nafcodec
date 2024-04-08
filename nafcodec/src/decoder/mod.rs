@@ -372,9 +372,11 @@ impl<R: BufRead + Seek> Iterator for Decoder<'_, R> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = self.header.number_of_sequences() as usize - self.n;
-        (0, Some(remaining))
+        (remaining, Some(remaining))
     }
 }
+
+impl<R: BufRead + Seek> ExactSizeIterator for Decoder<'_, R> {}
 
 impl<R: BufRead + Seek> FusedIterator for Decoder<'_, R> {}
 
