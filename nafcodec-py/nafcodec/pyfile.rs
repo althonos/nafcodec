@@ -19,7 +19,7 @@ macro_rules! transmute_file_error {
         // Attempt to transmute the Python OSError to an actual
         // Rust `std::io::Error` using `from_raw_os_error`.
         if $e.is_instance_of::<PyOSError>($py) {
-            if let Ok(code) = &$e.value($py).getattr("errno") {
+            if let Ok(code) = &$e.value_bound($py).getattr("errno") {
                 if let Ok(n) = code.extract::<i32>() {
                     return Err(IoError::from_raw_os_error(n));
                 }
@@ -44,18 +44,18 @@ pub struct PyFileRead {
 }
 
 impl PyFileRead {
-    pub fn from_ref<'p>(file: &'p PyAny) -> PyResult<PyFileRead> {
+    pub fn from_ref<'py>(file: &Bound<'py, PyAny>) -> PyResult<PyFileRead> {
         let py = file.py();
 
         let implementation = py
-            .import(pyo3::intern!(py, "sys"))?
+            .import_bound(pyo3::intern!(py, "sys"))?
             .getattr(pyo3::intern!(py, "implementation"))?
             .getattr(pyo3::intern!(py, "name"))?;
 
         if file.hasattr(pyo3::intern!(py, "readinto"))?
             && implementation.eq(pyo3::intern!(py, "cpython"))?
         {
-            let b = PyByteArray::new(py, &[]);
+            let b = PyByteArray::new_bound(py, &[]);
             if let Ok(res) = file.call_method1(pyo3::intern!(py, "readinto"), (b,)) {
                 if res.downcast::<PyLong>().is_ok() {
                     return Ok({
@@ -96,7 +96,7 @@ impl PyFileRead {
                         (&mut buf[..b.len()]).copy_from_slice(b);
                         Ok(b.len())
                     } else {
-                        let ty = obj.as_ref(py).get_type().name()?.to_string();
+                        let ty = obj.bind(py).get_type().name()?.to_string();
                         let msg = format!("expected bytes, found {}", ty);
                         PyTypeError::new_err(msg).restore(py);
                         Err(IoError::new(
@@ -129,7 +129,7 @@ impl PyFileRead {
                 Ok(n) => match n.extract::<usize>(py) {
                     Ok(n) => Ok(n),
                     Err(_) => {
-                        let ty = n.as_ref(py).get_type().name()?.to_string();
+                        let ty = n.bind(py).get_type().name()?.to_string();
                         let msg = format!("expected int, found {}", ty);
                         PyTypeError::new_err(msg).restore(py);
                         Err(IoError::new(
@@ -169,7 +169,7 @@ impl Seek for PyFileRead {
                     if let Ok(n) = obj.extract::<u64>(py) {
                         Ok(n)
                     } else {
-                        let ty = obj.as_ref(py).get_type().name()?.to_string();
+                        let ty = obj.bind(py).get_type().name()?.to_string();
                         let msg = format!("expected int, found {}", ty);
                         PyTypeError::new_err(msg).restore(py);
                         Err(IoError::new(

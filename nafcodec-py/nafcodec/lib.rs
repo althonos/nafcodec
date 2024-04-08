@@ -77,10 +77,10 @@ pub struct Record {
 
 impl pyo3::conversion::IntoPy<Record> for nafcodec::Record {
     fn into_py(self, py: Python<'_>) -> Record {
-        let id = self.id.map(|x| PyString::new(py, &x).into());
-        let sequence = self.sequence.map(|x| PyString::new(py, &x).into());
-        let comment = self.comment.map(|x| PyString::new(py, &x).into());
-        let quality = self.quality.map(|x| PyString::new(py, &x).into());
+        let id = self.id.map(|x| PyString::new_bound(py, &x).into());
+        let sequence = self.sequence.map(|x| PyString::new_bound(py, &x).into());
+        let comment = self.comment.map(|x| PyString::new_bound(py, &x).into());
+        let quality = self.quality.map(|x| PyString::new_bound(py, &x).into());
         let length = self.length;
         Record {
             id,
@@ -101,9 +101,9 @@ pub struct Decoder {
 #[pymethods]
 impl Decoder {
     #[new]
-    fn __init__(file: &PyAny) -> PyResult<PyClassInitializer<Self>> {
+    fn __init__<'py>(file: Bound<'py, PyAny>) -> PyResult<PyClassInitializer<Self>> {
         let py = file.py();
-        let decoder = match PyFileRead::from_ref(file) {
+        let decoder = match PyFileRead::from_ref(&file) {
             Ok(handle) => {
                 let wrapper = PyFileWrapper::PyFile(handle);
                 nafcodec::Decoder::new(std::io::BufReader::new(wrapper))
@@ -111,9 +111,9 @@ impl Decoder {
             }
             Err(_e) => {
                 let path = py
-                    .import("os")?
+                    .import_bound("os")?
                     .call_method1(pyo3::intern!(py, "fspath"), (file,))?
-                    .downcast::<PyString>()?;
+                    .extract::<Bound<'_, PyString>>()?;
                 let path_str = path.to_str()?;
                 let reader = std::fs::File::open(path_str)
                     .map_err(nafcodec::error::Error::Io)
@@ -156,7 +156,7 @@ impl Decoder {
 /// An encoder/decoder for Nucleotide Archive Format files.
 #[pymodule]
 #[pyo3(name = "lib")]
-pub fn init(_py: Python, m: &PyModule) -> PyResult<()> {
+pub fn init<'py>(_py: Python<'py>, m: &Bound<'py, PyModule>) -> PyResult<()> {
     m.add("__package__", "nafcodec")?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add("__author__", env!("CARGO_PKG_AUTHORS").replace(':', "\n"))?;

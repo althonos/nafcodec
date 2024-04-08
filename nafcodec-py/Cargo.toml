@@ -20,7 +20,7 @@ path = "../nafcodec"
 version = "0.1.1"
 features = ["arc"]
 [dependencies]
-pyo3 = "0.18.3"
+pyo3 = "0.21.1"
 
 [features]
 default = []
