@@ -13,8 +13,10 @@ use std::ops::DerefMut;
 use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::exceptions::PyIsADirectoryError;
 use pyo3::exceptions::PyOSError;
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::exceptions::PyUnicodeError;
 use pyo3::exceptions::PyValueError;
+use pyo3::ffi::lenfunc;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::types::PyString;
@@ -55,8 +57,57 @@ fn convert_error(_py: Python, error: nafcodec::error::Error, path: Option<&str>)
     }
 }
 
+// ---------------------------------------------------------------------------
+
+pub struct SequenceType(nafcodec::SequenceType);
+
+impl<'py> FromPyObject<'py> for SequenceType {
+    fn extract(ob: &'py PyAny) -> PyResult<Self> {
+        let py = ob.py();
+        match ob.downcast::<PyString>()?.to_string_lossy().as_ref() {
+            "dna" => Ok(SequenceType(nafcodec::SequenceType::Dna)),
+            "rna" => Ok(SequenceType(nafcodec::SequenceType::Rna)),
+            "protein" => Ok(SequenceType(nafcodec::SequenceType::Protein)),
+            "text" => Ok(SequenceType(nafcodec::SequenceType::Text)),
+            other => {
+                let msg =
+                    PyString::new_bound(py, "expected 'dna', 'rna', 'protein' or 'text', got {!r}")
+                        .call_method1("format", (other,))?
+                        .to_object(py);
+                Err(PyValueError::new_err(msg))
+            }
+        }
+    }
+}
+
+impl<'py> ToPyObject for SequenceType {
+    fn to_object(&self, py: Python<'_>) -> PyObject {
+        let tag = match self.0 {
+            nafcodec::SequenceType::Dna => pyo3::intern!(py, "dna"),
+            nafcodec::SequenceType::Rna => pyo3::intern!(py, "rna"),
+            nafcodec::SequenceType::Protein => pyo3::intern!(py, "protein"),
+            nafcodec::SequenceType::Text => pyo3::intern!(py, "text"),
+        };
+        tag.to_object(py)
+    }
+}
+
+impl From<nafcodec::SequenceType> for SequenceType {
+    fn from(ty: nafcodec::SequenceType) -> Self {
+        Self(ty)
+    }
+}
+
+impl From<SequenceType> for nafcodec::SequenceType {
+    fn from(ty: SequenceType) -> Self {
+        ty.0
+    }
+}
+
+// ---------------------------------------------------------------------------
+
 /// A single sequence record stored in a Nucleotide Archive Format file.
-#[pyclass(module = "nafcodec.lib")]
+#[pyclass(module = "nafcodec")]
 #[derive(Clone, Debug)]
 pub struct Record {
     /// `str` or `None`: The record identifier.
@@ -173,8 +224,50 @@ impl pyo3::conversion::IntoPy<Record> for nafcodec::Record {
     }
 }
 
+impl TryFrom<&Record> for nafcodec::Record {
+    type Error = PyErr;
+    fn try_from(value: &Record) -> Result<Self, PyErr> {
+        Python::with_gil(|py| {
+            let id = value
+                .id
+                .as_ref()
+                .map(|s| s.to_str(py))
+                .transpose()?
+                .map(String::from);
+            let comment = value
+                .comment
+                .as_ref()
+                .map(|s| s.to_str(py))
+                .transpose()?
+                .map(String::from);
+            let sequence = value
+                .sequence
+                .as_ref()
+                .map(|s| s.to_str(py))
+                .transpose()?
+                .map(String::from);
+            let quality = value
+                .quality
+                .as_ref()
+                .map(|s| s.to_str(py))
+                .transpose()?
+                .map(String::from);
+            let length = value.length.clone();
+            Ok(nafcodec::Record {
+                id,
+                comment,
+                sequence,
+                quality,
+                length,
+            })
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+
 /// A streaming decoder to read a Nucleotide Archive Format file.
-#[pyclass(module = "nafcodec.lib")]
+#[pyclass(module = "nafcodec")]
 pub struct Decoder {
     decoder: nafcodec::Decoder<'static, BufReader<PyFileWrapper>>,
 }
@@ -228,15 +321,9 @@ impl Decoder {
 
     /// `str`: The type of sequence stored in the archive.
     #[getter]
-    pub fn sequence_type(slf: PyRef<'_, Self>) -> &Bound<'_, PyString> {
-        use nafcodec::SequenceType;
+    pub fn sequence_type(slf: PyRef<'_, Self>) -> PyObject {
         let py = slf.py();
-        match slf.decoder.sequence_type() {
-            SequenceType::Dna => pyo3::intern!(py, "dna"),
-            SequenceType::Rna => pyo3::intern!(py, "rna"),
-            SequenceType::Protein => pyo3::intern!(py, "protein"),
-            SequenceType::Text => pyo3::intern!(py, "text"),
-        }
+        SequenceType(slf.decoder.sequence_type()).to_object(py)
     }
 
     /// `str`: The length of sequence lines in the original FASTA file.
@@ -269,6 +356,86 @@ impl Decoder {
     }
 }
 
+// ---------------------------------------------------------------------------
+
+/// An encoder to iteratively write a Nucleotide Archive Format file.
+#[pyclass(module = "nafcodec")]
+pub struct Encoder {
+    encoder: Option<nafcodec::Encoder<'static, nafcodec::Memory>>,
+    file: PyFileWrapper,
+}
+
+#[pymethods]
+impl Encoder {
+    #[new]
+    #[pyo3(signature=(
+        file,
+        sequence_type=SequenceType(nafcodec::SequenceType::Dna),
+        *,
+        id = true,
+        comment = false,
+        sequence = true,
+        quality = false,
+        compression_level = 0,
+    ))]
+    pub fn __init__<'py>(
+        file: Bound<'py, PyAny>,
+        sequence_type: SequenceType,
+        id: bool,
+        comment: bool,
+        sequence: bool,
+        quality: bool,
+        compression_level: i32,
+    ) -> PyResult<PyClassInitializer<Self>> {
+        let py = file.py();
+        let file = match PyFileRead::from_ref(&file) {
+            Ok(handle) => PyFileWrapper::PyFile(handle),
+            Err(_e) => {
+                let path = py
+                    .import_bound("os")?
+                    .call_method1(pyo3::intern!(py, "fspath"), (file,))?
+                    .extract::<Bound<'_, PyString>>()?;
+                let path_str = path.to_str()?;
+                std::fs::File::create(path_str)
+                    .map_err(nafcodec::error::Error::Io)
+                    .map_err(|e| convert_error(py, e, Some(path_str)))
+                    .map(PyFileWrapper::File)?
+            }
+        };
+        let encoder = nafcodec::EncoderBuilder::new(sequence_type.0)
+            .id(id)
+            .comment(comment)
+            .quality(quality)
+            .sequence(sequence)
+            .compression_level(compression_level)
+            .with_memory()
+            .map(Some)
+            .map_err(|e| convert_error(py, e, None))?;
+        Ok(Self { file, encoder }.into())
+    }
+
+    pub fn append<'py>(mut slf: PyRefMut<'py, Self>, record: &'py Record) -> PyResult<()> {
+        let py = slf.py();
+        if let Some(encoder) = slf.encoder.as_mut() {
+            encoder
+                .push(&record.try_into()?)
+                .map_err(|err| convert_error(py, err, None))
+        } else {
+            Err(PyRuntimeError::new_err("operation on closed encoder."))
+        }
+    }
+
+    pub fn close<'py>(mut slf: PyRefMut<'py, Self>) -> PyResult<()> {
+        let py = slf.py();
+        if let Some(encoder) = slf.encoder.take() {
+            encoder
+                .write(&mut slf.file)
+                .map_err(|e| convert_error(py, e, None))?;
+        }
+        Ok(())
+    }
+}
+
 /// An encoder/decoder for Nucleotide Archive Format files.
 #[pymodule]
 #[pyo3(name = "lib")]
@@ -278,6 +445,7 @@ pub fn init<'py>(_py: Python<'py>, m: &Bound<'py, PyModule>) -> PyResult<()> {
     m.add("__author__", env!("CARGO_PKG_AUTHORS").replace(':', "\n"))?;
 
     m.add_class::<Decoder>()?;
+    m.add_class::<Encoder>()?;
     m.add_class::<Record>()?;
 
     Ok(())

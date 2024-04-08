@@ -3,6 +3,7 @@ use std::io::Error as IoError;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
+use std::io::Write;
 
 use pyo3::exceptions::PyOSError;
 use pyo3::exceptions::PyTypeError;
@@ -186,6 +187,24 @@ impl Seek for PyFileRead {
 
 // ---------------------------------------------------------------------------
 
+/// A wrapper around a readable Python file borrowed within a GIL lifetime.
+#[derive(Debug)]
+pub struct PyFileWrite {
+    file: PyObject,
+}
+
+impl PyFileWrite {
+    pub fn from_ref<'py>(file: &Bound<'py, PyAny>) -> PyResult<PyFileWrite> {
+        let py = file.py();
+        file.call_method1(pyo3::intern!(py, "write"), (PyBytes::new_bound(py, b""),))?;
+        Ok(Self {
+            file: file.to_object(py),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+
 pub enum PyFileWrapper {
     PyFile(PyFileRead),
     File(File),
@@ -205,6 +224,22 @@ impl Seek for PyFileWrapper {
         match self {
             PyFileWrapper::PyFile(r) => r.seek(seek),
             PyFileWrapper::File(f) => f.seek(seek),
+        }
+    }
+}
+
+impl Write for PyFileWrapper {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, IoError> {
+        match self {
+            PyFileWrapper::PyFile(w) => unimplemented!(),
+            PyFileWrapper::File(f) => f.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> Result<(), IoError> {
+        match self {
+            PyFileWrapper::PyFile(w) => unimplemented!(),
+            PyFileWrapper::File(f) => f.flush(),
         }
     }
 }
