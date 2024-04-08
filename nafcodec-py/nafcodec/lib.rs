@@ -208,8 +208,12 @@ impl Decoder {
         Ok(Decoder { decoder }.into())
     }
 
-    pub fn __iter__(slf: PyRefMut<'_, Self>) -> PyResult<PyRefMut<'_, Self>> {
+    pub fn __iter__(slf: PyRef<'_, Self>) -> PyResult<PyRef<'_, Self>> {
         Ok(slf)
+    }
+
+    pub fn __len__(slf: PyRef<'_, Self>) -> PyResult<usize> {
+        Ok(slf.decoder.len())
     }
 
     pub fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Record>> {
