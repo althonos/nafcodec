@@ -13,9 +13,8 @@ categories = ["science", "parser-implementations", "compression"]
 
 [dependencies]
 nom = "7.1.3"
-zstd-sys = "=2.0.9"
 [dependencies.zstd]
-version = "0.12.4"
+version = "0.13.1"
 features = ["experimental"]
 [dependencies.tempfile]
 version = "3.8.1"
