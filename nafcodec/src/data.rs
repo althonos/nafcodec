@@ -4,6 +4,7 @@
 
 use std::ops::BitAnd;
 use std::ops::BitOr;
+use std::ops::BitOrAssign;
 
 /// A single masked unit with associated status decoded from the mask block.
 #[derive(Debug, Clone, PartialEq)]
@@ -149,6 +150,19 @@ impl Default for Flags {
 impl Into<u8> for Flags {
     fn into(self) -> u8 {
         self.0
+    }
+}
+
+impl BitOr<Flag> for Flags {
+    type Output = Flags;
+    fn bitor(self, rhs: Flag) -> Self::Output {
+        Flags(self.0.bitor(rhs as u8))
+    }
+}
+
+impl BitOrAssign<Flag> for Flags {
+    fn bitor_assign(&mut self, rhs: Flag) {
+        self.0 = self.0 | rhs;
     }
 }
 

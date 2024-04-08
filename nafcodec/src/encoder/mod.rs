@@ -51,6 +51,7 @@ pub struct EncoderBuilder {
     sequence_type: SequenceType,
     sequence: bool,
     quality: bool,
+    compression_level: i32,
 }
 
 impl EncoderBuilder {
@@ -60,7 +61,36 @@ impl EncoderBuilder {
             sequence_type,
             quality: false,
             sequence: true,
+            compression_level: 0,
         }
+    }
+
+    /// Whether or not to encode the sequence of records.
+    pub fn sequence(&mut self, sequence: bool) -> &mut Self {
+        self.sequence = sequence;
+        self
+    }
+
+    /// Whether or not to decode the quality of records.
+    pub fn quality(&mut self, quality: bool) -> &mut Self {
+        self.quality = quality;
+        self
+    }
+
+    /// The compression level to use for `zstd` compression
+    pub fn compression_level(&mut self, level: i32) -> &mut Self {
+        self.compression_level = level;
+        self
+    }
+
+    /// Create a new compressed writer using a storage buffer.
+    fn new_buffer<'z, S: Storage>(
+        &self,
+        storage: &S,
+    ) -> Result<zstd::Encoder<'z, S::Buffer>, IoError> {
+        let mut buffer = zstd::Encoder::new(storage.create_buffer()?, self.compression_level)?;
+        buffer.include_magicbytes(false)?;
+        Ok(buffer)
     }
 
     /// Build an encoder with this configuration that uses the given storage.
@@ -74,30 +104,28 @@ impl EncoderBuilder {
             header.format_version = FormatVersion::V2;
         }
 
-        header.flags = Flags::new(Flag::Sequence | Flag::Lengths | Flag::Comments | Flag::Ids); // sequence | lenghts | ids
+        header.flags = Flags::new(Flag::Ids | Flag::Comments);
+        if self.sequence {
+            header.flags |= Flag::Sequence;
+            header.flags |= Flag::Lengths;
+        }
+        if self.quality {
+            header.flags |= Flag::Quality;
+        }
 
-        let mut ids = zstd::Encoder::new(storage.create_buffer()?, 0)?;
-        ids.include_magicbytes(false)?;
-        let mut com = zstd::Encoder::new(storage.create_buffer()?, 0)?;
-        com.include_magicbytes(false)?;
-        let mut lens = zstd::Encoder::new(storage.create_buffer()?, 0)?;
-        lens.include_magicbytes(false)?;
-
+        let ids = self.new_buffer(&storage)?;
+        let com = self.new_buffer(&storage)?;
+        let lens = self.new_buffer(&storage)?;
         let seq = if self.sequence {
-            let mut seq = zstd::Encoder::new(storage.create_buffer()?, 0)?;
-            seq.include_magicbytes(false)?;
             Some(WriteCounter::new(SequenceWriter::new(
                 self.sequence_type,
-                seq,
+                self.new_buffer(&storage)?,
             )))
         } else {
             None
         };
-
         let qual = if self.quality {
-            let mut qual = zstd::Encoder::new(storage.create_buffer()?, 0)?;
-            qual.include_magicbytes(false)?;
-            Some(WriteCounter::new(qual))
+            Some(WriteCounter::new(self.new_buffer(&storage)?))
         } else {
             None
         };
@@ -117,7 +145,6 @@ impl EncoderBuilder {
 pub struct Encoder<'z, S: Storage> {
     header: Header,
     storage: S,
-
     ids: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     com: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     len: WriteCounter<zstd::Encoder<'z, S::Buffer>>,

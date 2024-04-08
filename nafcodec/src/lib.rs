@@ -16,6 +16,7 @@ pub use self::data::SequenceType;
 pub use self::decoder::Decoder;
 pub use self::decoder::DecoderBuilder;
 pub use self::encoder::Encoder;
+pub use self::encoder::EncoderBuilder;
 
 /// The reference counter type used to share the stream.
 #[cfg(feature = "arc")]
