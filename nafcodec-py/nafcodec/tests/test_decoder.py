@@ -33,15 +33,15 @@ class _TestDecoder(object):
 
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_dna(self):
-        decoder = self._get_decoder("NZ_AAEN01000029.naf")
+        decoder = self._get_decoder("CP040672.naf")
         self.assertEqual(decoder.sequence_type, "dna")
         records = list(decoder)
-        self.assertEqual(len(records), 30)
-        self.assertEqual(records[0].id, "NZ_AAEN01000029.1")
-        self.assertEqual(records[0].sequence.count('A'), 62115)
-        self.assertEqual(records[0].sequence.count('C'), 28747)
-        self.assertEqual(records[0].sequence.count('G'), 30763)
-        self.assertEqual(records[0].sequence.count('T'), 61152)
+        self.assertEqual(len(records), 100)
+        self.assertEqual(records[0].id, "lcl|NZ_CP040672.1_cds_WP_044801954.1_1")
+        self.assertEqual(records[0].sequence.count('A'), 181)
+        self.assertEqual(records[0].sequence.count('C'), 200)
+        self.assertEqual(records[0].sequence.count('G'), 210)
+        self.assertEqual(records[0].sequence.count('T'), 240)
         self.assertIs(records[0].quality, None)
 
     @unittest.skipUnless(files, "importlib.resources not found")
