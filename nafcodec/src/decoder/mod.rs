@@ -34,7 +34,7 @@ type ZstdDecoder<'z, R> = BufReader<zstd::Decoder<'z, BufReader<IoSlice<R>>>>;
 /// let decoder = nafcodec::DecoderBuilder::new()
 ///     .sequence(false)
 ///     .quality(false)
-///     .from_path("../data/phix.naf")
+///     .with_path("../data/phix.naf")
 ///     .unwrap();
 /// for record in decoder.map(Result::unwrap) {
 ///     println!(">{}", record.id.unwrap());
@@ -72,7 +72,7 @@ impl DecoderBuilder {
     /// ```
     /// # use nafcodec::{DecoderBuilder, Flag};
     /// let mut decoder = DecoderBuilder::from_flags(Flag::Id | Flag::Quality)
-    ///     .from_path("../data/phix.naf")
+    ///     .with_path("../data/phix.naf")
     ///     .unwrap();
     ///
     /// let record = decoder.next().unwrap().unwrap();
@@ -125,18 +125,18 @@ impl DecoderBuilder {
         self
     }
 
-    /// Build a decoder with this configuration that reads a file at the given path.
-    pub fn from_path<'z, P: AsRef<Path>>(
+    /// Consume the builder to get a decoder reading a file at the given path.
+    pub fn with_path<'z, P: AsRef<Path>>(
         &self,
         path: P,
     ) -> Result<Decoder<'z, BufReader<File>>, Error> {
         File::open(path.as_ref())
             .map_err(Error::from)
-            .and_then(|f| self.from_reader(std::io::BufReader::new(f)))
+            .and_then(|f| self.with_reader(std::io::BufReader::new(f)))
     }
 
-    /// Build a decoder with this configuration that reads data from `reader`.
-    pub fn from_reader<'z, R: BufRead + Seek>(
+    /// Consume the builder to get a decoder reading data from `reader`.
+    pub fn with_reader<'z, R: BufRead + Seek>(
         &self,
         mut reader: R,
     ) -> Result<Decoder<'z, R>, Error> {
@@ -278,18 +278,18 @@ impl Decoder<'_, BufReader<File>> {
     /// Use [`DecoderBuilder`](./struct.DecoderBuilder.html) to configure a decoder
     /// with more options.
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
-        DecoderBuilder::new().from_path(path)
+        DecoderBuilder::new().with_path(path)
     }
 }
 
 impl<R: BufRead + Seek> Decoder<'_, R> {
     /// Create a new decoder from the given reader.
     ///
-    /// This constructor is a shortcut for `DecoderBuilder::new().from_reader(reader)`.
+    /// This constructor is a shortcut for `DecoderBuilder::new().with_reader(reader)`.
     /// Use [`DecoderBuilder`](./struct.DecoderBuilder.html) to configure a
     /// decoder with more options.
     pub fn new(reader: R) -> Result<Self, Error> {
-        DecoderBuilder::new().from_reader(reader)
+        DecoderBuilder::new().with_reader(reader)
     }
 
     /// Get the header extracted from the archive.
@@ -474,7 +474,7 @@ mod tests {
     fn skip_sequence() {
         let decoder = DecoderBuilder::new()
             .sequence(false)
-            .from_reader(std::io::Cursor::new(ARCHIVE))
+            .with_reader(std::io::Cursor::new(ARCHIVE))
             .unwrap();
         for record in decoder.map(Result::unwrap) {
             assert!(record.sequence.is_none());

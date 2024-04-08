@@ -75,7 +75,7 @@ impl EncoderBuilder {
     /// ```
     /// # use nafcodec::{EncoderBuilder, Flag, Memory, SequenceType::Dna};
     /// let mut encoder = EncoderBuilder::from_flags(Dna, Flag::Id | Flag::Quality)
-    ///     .from_storage(Memory)
+    ///     .with_memory()
     ///     .unwrap();
     /// # drop(encoder);
     /// ```
@@ -89,18 +89,21 @@ impl EncoderBuilder {
     }
 
     /// Whether or not to encode the comment of each record.
+    #[inline]
     pub fn comment(&mut self, comment: bool) -> &mut Self {
         self.comment = comment;
         self
     }
 
     /// Whether or not to encode the sequence of each record.
+    #[inline]
     pub fn sequence(&mut self, sequence: bool) -> &mut Self {
         self.sequence = sequence;
         self
     }
 
     /// Whether or not to decode the quality of each record.
+    #[inline]
     pub fn quality(&mut self, quality: bool) -> &mut Self {
         self.quality = quality;
         self
@@ -111,6 +114,7 @@ impl EncoderBuilder {
     /// Pass `0` to use the default `zstd` value, otherwise any
     /// integer in range 1-22. See [`zstd::stream::write::Encoder`]
     /// for more information.
+    #[inline]
     pub fn compression_level(&mut self, level: i32) -> &mut Self {
         self.compression_level = level;
         self
@@ -126,8 +130,14 @@ impl EncoderBuilder {
         Ok(buffer)
     }
 
-    /// Build an encoder with this configuration that uses the given storage.
-    pub fn from_storage<'z, S: Storage>(&self, storage: S) -> Result<Encoder<'z, S>, IoError> {
+    /// Consume the builder to get an encoder using in-memory storage.
+    #[inline]
+    pub fn with_memory<'z>(&self) -> Result<Encoder<'z, Memory>, IoError> {
+        self.with_storage(Memory)
+    }
+
+    /// Consume the builder to get an encoder using the given storage.
+    pub fn with_storage<'z, S: Storage>(&self, storage: S) -> Result<Encoder<'z, S>, IoError> {
         let mut header = Header::default();
 
         header.sequence_type = self.sequence_type;
@@ -213,7 +223,7 @@ impl Encoder<'_, Memory> {
 
 impl<S: Storage> Encoder<'_, S> {
     pub fn from_storage(sequence_type: SequenceType, storage: S) -> Result<Self, IoError> {
-        EncoderBuilder::new(sequence_type).from_storage(storage)
+        EncoderBuilder::new(sequence_type).with_storage(storage)
     }
 
     pub fn push(&mut self, record: &Record) -> Result<(), IoError> {

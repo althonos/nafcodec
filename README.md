@@ -70,7 +70,7 @@ in the source archive:
 ```rust
 let mut decoder = nafcodec::DecoderBuilder::new()
     .quality(false)
-    .from_path("../data/phix.naf")
+    .with_path("../data/phix.naf")
     .expect("failed to open nucleotide archive");
 
 // the archive contains quality strings...
