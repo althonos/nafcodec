@@ -310,8 +310,8 @@ impl Decoder {
     }
 
     pub fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Record>> {
-        let result = slf.deref_mut().decoder.next().transpose();
         let py = slf.py();
+        let result = slf.deref_mut().decoder.next().transpose();
         match result {
             Ok(None) => Ok(None),
             Ok(Some(record)) => Ok(Some(record.into_py(py))),
@@ -353,6 +353,19 @@ impl Decoder {
     #[getter]
     pub fn number_of_sequences(slf: PyRef<'_, Self>) -> u64 {
         slf.decoder.header().number_of_sequences()
+    }
+
+    /// Read the next record from the archive.
+    ///
+    /// This method will returns `None` when no more records are available.
+    pub fn read(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Record>> {
+        let py = slf.py();
+        let result = slf.deref_mut().decoder.next().transpose();
+        match result {
+            Ok(None) => Ok(None),
+            Ok(Some(record)) => Ok(Some(record.into_py(py))),
+            Err(e) => Err(convert_error(py, e, None)),
+        }
     }
 }
 
@@ -414,7 +427,22 @@ impl Encoder {
         Ok(Self { file, encoder }.into())
     }
 
-    pub fn append<'py>(mut slf: PyRefMut<'py, Self>, record: &'py Record) -> PyResult<()> {
+    pub fn __enter__<'py>(slf: PyRef<'py, Self>) -> PyRef<'py, Self> {
+        slf
+    }
+
+    #[allow(unused)]
+    pub fn __exit__<'py>(
+        slf: PyRefMut<'py, Self>,
+        exc_type: Bound<'py, PyAny>,
+        exc_value: Bound<'py, PyAny>,
+        traceback: Bound<'py, PyAny>,
+    ) -> PyResult<bool> {
+        Encoder::close(slf)?;
+        Ok(false)
+    }
+
+    pub fn write<'py>(mut slf: PyRefMut<'py, Self>, record: &'py Record) -> PyResult<()> {
         let py = slf.py();
         if let Some(encoder) = slf.encoder.as_mut() {
             encoder
