@@ -44,6 +44,20 @@ fn write_length<W: Write>(mut l: u64, mut w: W) -> Result<(), IoError> {
 }
 
 /// A builder to configure and initialize an [`Encoder`].
+///
+/// The fields to encode are *opt-in*: only the fields enabled through the
+/// builder will be extracted from the [`Record`] passed to [`Encoder::push`]
+/// and written to the archive.
+///
+/// For instance, to write a nucleotide archive containing only the sequence
+/// and identifier of each record:
+/// ```rust
+/// let encoder = nafcodec::EncoderBuilder::new(nafcodec::SequenceType::Dna)
+///     .id(true)
+///     .sequence(true)
+///     .with_memory()
+///     .unwrap();
+/// ```
 #[derive(Debug, Clone)]
 pub struct EncoderBuilder {
     sequence_type: SequenceType,
@@ -59,10 +73,10 @@ impl EncoderBuilder {
     pub fn new(sequence_type: SequenceType) -> Self {
         Self {
             sequence_type,
-            id: true,
+            id: false,
             quality: false,
             comment: false,
-            sequence: true,
+            sequence: false,
             compression_level: 0,
         }
     }

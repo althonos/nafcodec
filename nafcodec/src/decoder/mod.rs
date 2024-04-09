@@ -32,8 +32,12 @@ type ZstdDecoder<'z, R> = BufReader<zstd::Decoder<'z, BufReader<IoSlice<R>>>>;
 
 /// A builder to configure and initialize a [`Decoder`].
 ///
-/// Use the provided methods to avoid decoding uneeded fields. For instance,
-/// to read a nucleotide archive and only extract sequences names:
+/// The fields to decode are *opt-out*: by default, the [`Decoder`] will
+/// extract all available fields found in the archive into each [`Record`].
+/// Use the provided methods to avoid decoding uneeded fields.
+///
+/// For instance, to read a nucleotide archive and only extract
+/// sequences names, skipping decoding of sequences:
 /// ```rust
 /// let decoder = nafcodec::DecoderBuilder::new()
 ///     .sequence(false)
