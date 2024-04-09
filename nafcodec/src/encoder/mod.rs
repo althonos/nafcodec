@@ -240,6 +240,12 @@ pub struct Encoder<'z, S: Storage> {
 }
 
 impl<S: Storage> Encoder<'_, S> {
+    /// Push a [`Record`] to the archive.
+    ///
+    /// The records contents are written to the temporary storage used
+    /// internally by the [`Encoder`], but the [`Encoder::write`] method
+    /// needs to be called once all records have been added to build the
+    /// final archive.
     pub fn push(&mut self, record: &Record) -> Result<(), Error> {
         if let Some(id_writer) = self.id.as_mut() {
             if let Some(id) = record.id.as_ref() {
@@ -286,6 +292,11 @@ impl<S: Storage> Encoder<'_, S> {
         Ok(())
     }
 
+    /// Finalize the archive and write it to the given writer.
+    ///
+    /// This method consumes the [`Encoder`], since it cannot receive any
+    /// additional [`Record`] after the compressed blocks have been
+    /// finalized.
     pub fn write<W: Write>(self, mut file: W) -> Result<(), Error> {
         // --- header ---
         file.write_all(&[0x01, 0xF9, 0xEC])?; // format descriptor
