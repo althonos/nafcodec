@@ -5,6 +5,7 @@ pub enum Error {
     Io(std::io::Error),
     Nom(nom::error::Error<Vec<u8>>),
     Utf8(std::str::Utf8Error),
+    MissingField(&'static str),
 }
 
 impl From<std::io::Error> for Error {

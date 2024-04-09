@@ -252,7 +252,7 @@ impl<S: Storage> Encoder<'_, S> {
                 id_writer.write_all(id.as_bytes())?;
                 id_writer.write_all(b"\0")?;
             } else {
-                panic!("missing ids")
+                return Err(Error::MissingField("id"));
             }
         }
 
@@ -262,7 +262,7 @@ impl<S: Storage> Encoder<'_, S> {
                 com_writer.write_all(b"\0")?;
                 com_writer.flush()?;
             } else {
-                panic!("missing comment");
+                return Err(Error::MissingField("comment"));
             }
         }
 
@@ -273,7 +273,7 @@ impl<S: Storage> Encoder<'_, S> {
                 seq_writer.write(seq.as_bytes())?;
                 seq_writer.flush()?;
             } else {
-                panic!("missing sequence")
+                return Err(Error::MissingField("sequence"));
             }
         }
 
@@ -284,7 +284,7 @@ impl<S: Storage> Encoder<'_, S> {
                 qual_writer.write_all(qual.as_bytes())?;
                 qual_writer.flush()?;
             } else {
-                panic!("missing quality")
+                return Err(Error::MissingField("quality"));
             }
         }
 
