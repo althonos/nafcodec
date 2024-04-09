@@ -14,6 +14,7 @@ use std::io::BufReader;
 use std::io::Seek;
 use std::ops::DerefMut;
 
+use nafcodec::DecoderBuilder;
 use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::exceptions::PyIsADirectoryError;
 use pyo3::exceptions::PyOSError;
@@ -312,12 +313,35 @@ pub struct Decoder {
 #[pymethods]
 impl Decoder {
     #[new]
-    pub fn __init__<'py>(file: Bound<'py, PyAny>) -> PyResult<PyClassInitializer<Self>> {
+    #[pyo3(signature = (file, *, id=true, comment=true, sequence=true, quality=true, mask=true, buffer_size=None))]
+    pub fn __init__<'py>(
+        file: Bound<'py, PyAny>,
+        id: bool,
+        comment: bool,
+        sequence: bool,
+        quality: bool,
+        mask: bool,
+        buffer_size: Option<usize>,
+    ) -> PyResult<PyClassInitializer<Self>> {
         let py = file.py();
+
+        let mut builder = DecoderBuilder::new();
+        builder.id(id);
+        builder.comment(comment);
+        builder.sequence(sequence);
+        builder.quality(quality);
+        builder.mask(mask);
+        builder.buffer_size(buffer_size.map(Ok).unwrap_or_else(|| {
+            py.import_bound(pyo3::intern!(py, "io"))?
+                .getattr(pyo3::intern!(py, "DEFAULT_BUFFER_SIZE"))?
+                .extract::<usize>()
+        })?);
+
         let decoder = match PyFileRead::from_ref(&file) {
             Ok(handle) => {
                 let wrapper = PyFileReadWrapper::PyFile(handle);
-                nafcodec::Decoder::new(std::io::BufReader::new(wrapper))
+                builder
+                    .with_reader(std::io::BufReader::new(wrapper))
                     .map_err(|e| convert_error(py, e, None))?
             }
             Err(_e) => {
@@ -326,11 +350,12 @@ impl Decoder {
                     .call_method1(pyo3::intern!(py, "fspath"), (file,))?
                     .extract::<Bound<'_, PyString>>()?;
                 let path_str = path.to_str()?;
-                let reader = std::fs::File::open(path_str)
+                let wrapper = std::fs::File::open(path_str)
                     .map_err(nafcodec::error::Error::Io)
                     .map_err(|e| convert_error(py, e, Some(path_str)))
                     .map(PyFileReadWrapper::File)?;
-                nafcodec::Decoder::new(std::io::BufReader::new(reader))
+                builder
+                    .with_reader(std::io::BufReader::new(wrapper))
                     .map_err(|e| convert_error(py, e, Some(path_str)))?
             }
         };
