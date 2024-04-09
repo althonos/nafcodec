@@ -18,8 +18,23 @@ except ImportError:
 
 class _TestDecoder(object):
 
-    def _get_decoder(self, filename):
+    def _get_decoder(self, filename, **options):
         raise NotImplementedError
+
+    @unittest.skipUnless(files, "importlib.resources not found")
+    def test_fastq_optional(self):
+        decoder = self._get_decoder("phix.naf", id=False, sequence=False, comment=False)
+        for record in decoder:
+            self.assertIs(record.id, None)
+            self.assertIs(record.sequence, None)
+            self.assertIs(record.comment, None)
+            self.assertIsNot(record.quality, None)
+        decoder = self._get_decoder("phix.naf", id=False, comment=False)
+        for record in decoder:
+            self.assertIs(record.id, None)
+            self.assertIs(record.comment, None)
+            self.assertIsNot(record.sequence, None)
+            self.assertIsNot(record.quality, None)
 
     @unittest.skipUnless(files, "importlib.resources not found")
     def test_len(self):
@@ -85,25 +100,25 @@ class _TestDecoder(object):
 
 class TestDecoderHandle(_TestDecoder, unittest.TestCase):
 
-    def _get_decoder(self, filename):
+    def _get_decoder(self, filename, **options):
         with files(data).joinpath(filename).open("rb") as f:
             content = f.read()
         handle = io.BytesIO(content)
-        return nafcodec.Decoder(handle)
+        return nafcodec.Decoder(handle, **options)
 
 
 class TestDecoderFile(_TestDecoder, unittest.TestCase):
 
     def setUp(self):
-        self.handle = None
+        self.handles = []
 
     def tearDown(self):
-        if self.handle is not None:
-            self.handle.close()
+        for handle in self.handles:
+            handle.close()
 
-    def _get_decoder(self, filename):
-        self.handle = files(data).joinpath(filename).open("rb")
-        return nafcodec.Decoder(self.handle)
+    def _get_decoder(self, filename, **options):
+        self.handles.append(files(data).joinpath(filename).open("rb"))
+        return nafcodec.Decoder(self.handles[-1], **options)
 
     def test_error_filenotfound(self):
         with self.assertRaises(FileNotFoundError):
