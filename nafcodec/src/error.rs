@@ -5,6 +5,7 @@ pub enum Error {
     Io(std::io::Error),
     Nom(nom::error::Error<Vec<u8>>),
     Utf8(std::str::Utf8Error),
+    InvalidSequence,
     MissingField(&'static str),
 }
 

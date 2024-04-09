@@ -270,7 +270,13 @@ impl<S: Storage> Encoder<'_, S> {
             if let Some(seq) = record.sequence.as_ref() {
                 let length = seq.len();
                 write_length(length as u64, &mut self.len)?;
-                seq_writer.write(seq.as_bytes())?;
+                if let Err(e) = seq_writer.write(seq.as_bytes()) {
+                    if e.kind() == std::io::ErrorKind::InvalidData {
+                        return Err(Error::InvalidSequence);
+                    } else {
+                        return Err(Error::Io(e));
+                    }
+                }
                 seq_writer.flush()?;
             } else {
                 return Err(Error::MissingField("sequence"));
