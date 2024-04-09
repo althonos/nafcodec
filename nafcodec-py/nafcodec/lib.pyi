@@ -62,9 +62,9 @@ class Encoder(ContextManager[Encoder]):
         file: Union[str, os.PathLike[str], BinaryIO],
         sequence_type: SEQUENCE_TYPE = "dna",
         *,
-        id: bool = True,
+        id: bool = False,
         comment: bool = False,
-        sequence: bool = True,
+        sequence: bool = False,
         quality: bool = False,
     ): ...
     def __enter__(self) -> Encoder: ...

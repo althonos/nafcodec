@@ -435,9 +435,9 @@ impl Encoder {
         file,
         sequence_type=SequenceType(nafcodec::SequenceType::Dna),
         *,
-        id = true,
+        id = false,
         comment = false,
-        sequence = true,
+        sequence = false,
         quality = false,
         compression_level = 0,
     ))]
