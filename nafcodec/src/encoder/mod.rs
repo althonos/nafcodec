@@ -239,22 +239,7 @@ pub struct Encoder<'z, S: Storage> {
     // mask: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
 }
 
-impl Encoder<'_, Memory> {
-    /// Create a new encoder for the given sequence type using memory buffers.
-    ///
-    /// Use [`Encoder::from_storage`] to specificy a different storage type,
-    /// such as a [`tempfile::TempDir`] to store the temporary compressed
-    /// blocks into a temporary directory.
-    pub fn new(sequence_type: SequenceType) -> Result<Self, Error> {
-        Self::from_storage(sequence_type, Default::default())
-    }
-}
-
 impl<S: Storage> Encoder<'_, S> {
-    pub fn from_storage(sequence_type: SequenceType, storage: S) -> Result<Self, Error> {
-        EncoderBuilder::new(sequence_type).with_storage(storage)
-    }
-
     pub fn push(&mut self, record: &Record) -> Result<(), Error> {
         if let Some(id_writer) = self.id.as_mut() {
             if let Some(id) = record.id.as_ref() {
@@ -360,7 +345,11 @@ mod tests {
 
     #[test]
     fn encoder_memory() {
-        let mut encoder = Encoder::<Memory>::new(SequenceType::Protein).unwrap();
+        let mut encoder = EncoderBuilder::new(SequenceType::Protein)
+            .id(true)
+            .sequence(true)
+            .with_memory()
+            .unwrap();
         let r1 = Record {
             id: Some("r1".into()),
             comment: Some("record 1".into()),
@@ -385,7 +374,11 @@ mod tests {
     #[test]
     fn encoder_tempfile() {
         let tempdir = tempfile::TempDir::new().unwrap();
-        let mut encoder = Encoder::from_storage(SequenceType::Dna, tempdir).unwrap();
+        let mut encoder = EncoderBuilder::new(SequenceType::Dna)
+            .id(true)
+            .sequence(true)
+            .with_storage(tempdir)
+            .unwrap();
         let r1 = Record {
             id: Some("r1".into()),
             comment: Some("record 1".into()),
