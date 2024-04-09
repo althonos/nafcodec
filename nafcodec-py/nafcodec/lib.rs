@@ -4,14 +4,13 @@ extern crate nafcodec;
 extern crate pyo3;
 
 mod pyfile;
+
 use self::pyfile::PyFileRead;
 use self::pyfile::PyFileReadWrapper;
 use self::pyfile::PyFileWrite;
 use self::pyfile::PyFileWriteWrapper;
 
-use std::io::BufRead;
 use std::io::BufReader;
-use std::io::Seek;
 use std::ops::DerefMut;
 
 use nafcodec::DecoderBuilder;
