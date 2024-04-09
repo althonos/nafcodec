@@ -50,3 +50,27 @@ where
         }
     }
 }
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Io(e) => e.fmt(f),
+            Error::Nom(e) => nom::Err::Error(e).fmt(f),
+            Error::Utf8(e) => e.fmt(f),
+            Error::InvalidSequence => f.write_str("invalid character in sequence"),
+            Error::MissingField(field) => write!(f, "missing record field: {:?}", field),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Io(e) => Some(e),
+            Error::Utf8(e) => Some(e),
+            Error::Nom(_) => None,
+            Error::InvalidSequence => None,
+            Error::MissingField(_) => None,
+        }
+    }
+}
