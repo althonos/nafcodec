@@ -19,6 +19,7 @@ doctest = false
 [dependencies.nafcodec]
 path = "../nafcodec"
 version = "0.2.0"
+default-features = false
 features = ["arc"]
 [dependencies]
 pyo3 = "0.21.1"
