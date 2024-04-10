@@ -35,16 +35,16 @@ class TestEncoder(unittest.TestCase):
 
     def test_dna_records(self):
         buffer = io.BytesIO()
-        
+
         with nafcodec.Encoder(buffer, sequence_type="dna", id=True, sequence=True) as f:
             f.write(nafcodec.Record(id="r1", sequence="ATTATTAGACAGAGC"))
             f.write(nafcodec.Record(id="r2", sequence="CTATTG"))
             f.write(nafcodec.Record(id="r3", sequence="TTAGTNNNNN"))
-        
+
         buffer.seek(0)
         decoder = nafcodec.Decoder(buffer)
         records = list(decoder)
-        
+
         self.assertEqual(len(records), 3)
         self.assertEqual(records[0].id, "r1")
         self.assertEqual(records[1].id, "r2")
@@ -59,16 +59,18 @@ class TestEncoder(unittest.TestCase):
 
     def test_fastq_records(self):
         buffer = io.BytesIO()
-        
-        with nafcodec.Encoder(buffer, sequence_type="rna", id=True, sequence=True, quality=True) as f:
+
+        with nafcodec.Encoder(
+            buffer, sequence_type="rna", id=True, sequence=True, quality=True
+        ) as f:
             f.write(nafcodec.Record(id="r1", sequence="AUUAU", quality="GGGGG"))
             f.write(nafcodec.Record(id="r2", sequence="CUAUU", quality="#8A@C"))
             f.write(nafcodec.Record(id="r3", sequence="UUAGU", quality="CCGGG"))
-        
+
         buffer.seek(0)
         decoder = nafcodec.Decoder(buffer)
         records = list(decoder)
-        
+
         self.assertEqual(len(records), 3)
         self.assertEqual(records[0].id, "r1")
         self.assertEqual(records[1].id, "r2")
@@ -82,6 +84,3 @@ class TestEncoder(unittest.TestCase):
 
         for i in range(3):
             self.assertIs(records[i].comment, None)
-
-
-

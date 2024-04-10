@@ -551,7 +551,36 @@ pub fn init<'py>(_py: Python<'py>, m: &Bound<'py, PyModule>) -> PyResult<()> {
     m.add_class::<Encoder>()?;
     m.add_class::<Record>()?;
 
+    #[cfg(not(doctest))]
     /// Open a Nucleotide Archive Format file.
+    ///
+    /// This function acts as a high-level wrapper and returns either
+    /// a `~nafcodec.Decoder` or an `~nafcodec.Encoder` depending on the
+    /// provided mode.
+    ///
+    /// Arguments:
+    ///     file (`str`, `pathlib.Path` or file-like object): The file to
+    ///         read the archive from, or write the archive to.
+    ///     mode (`str`): The mode to open the archive with, either 'r'
+    ///         to read an existing archive, or 'w' to write a new
+    ///         archive.
+    ///     options (`object`): Additional options to pass to the
+    ///         `~nafcodec.Decoder` or `~nafcodec.Encoder` constructors.
+    ///  
+    /// Example:
+    ///     Open an archive and read all the records from an existing
+    ///     archive into a `list`::
+    ///
+    ///     >>> with open("LuxC.naf") as decoder:
+    ///     ...     records = list(decoder)
+    ///     
+    ///     Create a new archive for recording FASTA records (identifiers
+    ///     and DNA sequences)::
+    ///     
+    ///     >>> with tempfile.NamedTemporaryFile() as dst:
+    ///     ...     with open(dst, "w", id=True, sequence=True) as encoder:
+    ///     ...         encoder.write(Record(id="r1", sequence="ATGC"))
+    ///
     #[pyfn(m)]
     #[pyo3(signature = (file, mode = OpenMode::Read, **options))]
     fn open<'py>(

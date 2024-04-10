@@ -16,6 +16,7 @@ try:
 except ImportError:
     files = None  # type: ignore
 
+
 class TestOpen(unittest.TestCase):
 
     @unittest.skipUnless(files, "importlib.resources not found")
