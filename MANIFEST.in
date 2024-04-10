@@ -4,8 +4,8 @@ include CHANGELOG.md
 include README.md
 include pyproject.toml
 
-# exclude Cargo.toml
-# exclude Cargo.lock
+include Cargo.toml
+include Cargo.lock
 
 recursive-include nafcodec      *.rs Cargo.toml README.md
 recursive-include nafcodec-py   *.rs Cargo.toml README.md *.py
