@@ -1,6 +1,6 @@
 [package]
 name = "nafcodec-py"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Martin Larralde <martin.larralde@embl.de>"]
 edition = "2021"
 license = "MIT"
@@ -18,7 +18,7 @@ doctest = false
 
 [dependencies.nafcodec]
 path = "../nafcodec"
-version = "0.1.1"
+version = "0.2.0"
 features = ["arc"]
 [dependencies]
 pyo3 = "0.21.1"
