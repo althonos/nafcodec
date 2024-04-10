@@ -524,10 +524,51 @@ impl Encoder {
 
     pub fn write<'py>(mut slf: PyRefMut<'py, Self>, record: &'py Record) -> PyResult<()> {
         let py = slf.py();
+
+        // This macro allows borrowing a field from the Python record and get
+        // a `Cow<'py, str>` instead of copying the data.
+        //
+        // The problem here is that the borrow need to live long enough
+        // for all fields to be read and the resulting record written to the
+        // encoder. However, because every field is optional, the borrows
+        // would occur in `if let` blocks:
+        //
+        // ```
+        // if let Some(x) = record.id {
+        //     id = Some(x.bind(py).as_borrowed().to_str());
+        // }
+        // ```
+        //
+        // To avoid this, we store the borrowed reference in an external
+        // variable that lives longer than the `if let` scope.
+        //
+        macro_rules! borrow_field {
+            ($field:ident) => {
+                #[allow(unused_assignments)]
+                let mut borrowed = None;
+                let mut $field = None;
+                if let Some(x) = record.$field.as_ref() {
+                    let s = x.bind(py);
+                    let b = s.as_borrowed();
+                    borrowed = Some(b);
+                    $field = borrowed.as_ref().map(|b| b.to_cow()).transpose()?;
+                }
+            };
+        }
+
         if let Some(encoder) = slf.encoder.as_mut() {
-            encoder
-                .push(&record.try_into()?)
-                .map_err(|err| convert_error(py, err, None))
+            borrow_field!(id);
+            borrow_field!(comment);
+            borrow_field!(sequence);
+            borrow_field!(quality);
+            let r = nafcodec::Record {
+                id,
+                comment,
+                sequence,
+                quality,
+                length: record.length.clone(),
+            };
+            encoder.push(&r).map_err(|err| convert_error(py, err, None))
         } else {
             Err(PyRuntimeError::new_err("operation on closed encoder."))
         }

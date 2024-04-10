@@ -52,7 +52,8 @@ fn write_length<W: Write>(mut l: u64, mut w: W) -> Result<(), IoError> {
 /// For instance, to write a nucleotide archive containing only the sequence
 /// and identifier of each record:
 /// ```rust
-/// let encoder = nafcodec::EncoderBuilder::new(nafcodec::SequenceType::Dna)
+/// # use nafcodec::*;
+/// let encoder = EncoderBuilder::new(SequenceType::Dna)
 ///     .id(true)
 ///     .sequence(true)
 ///     .with_memory()
