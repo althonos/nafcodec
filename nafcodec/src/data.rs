@@ -2,6 +2,7 @@
 
 // --- MaskUnit ----------------------------------------------------------------
 
+use std::borrow::Cow;
 use std::ops::BitOr;
 use std::ops::BitOrAssign;
 
@@ -25,18 +26,20 @@ pub enum MaskUnit {
 /// structure.
 ///
 #[derive(Debug, Clone, Default)]
-pub struct Record {
+pub struct Record<'a> {
     /// The record identifier (accession number).
-    pub id: Option<String>,
+    pub id: Option<Cow<'a, str>>,
     /// The record comment (description).
-    pub comment: Option<String>,
+    pub comment: Option<Cow<'a, str>>,
     /// The record sequence.
-    pub sequence: Option<String>,
+    pub sequence: Option<Cow<'a, str>>,
     /// The record quality string.
-    pub quality: Option<String>,
+    pub quality: Option<Cow<'a, str>>,
     /// The record sequence length.
     pub length: Option<u64>,
 }
+
+// --- FormatVersion -----------------------------------------------------------
 
 /// The supported format versions inside NAF archives.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -45,6 +48,8 @@ pub enum FormatVersion {
     V1 = 1,
     V2 = 2,
 }
+
+// --- SequenceType ------------------------------------------------------------
 
 /// The type of sequence stored in a Nucleotide Archive Format file.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -66,6 +71,8 @@ impl SequenceType {
         }
     }
 }
+
+// --- Flag --------------------------------------------------------------------
 
 /// A single flag inside header flags.
 #[repr(u8)]
@@ -116,6 +123,8 @@ impl BitOr<Flag> for Flag {
         Flags((self as u8).bitor(rhs as u8))
     }
 }
+
+// --- Flags -------------------------------------------------------------------
 
 /// The flags for optional content blocks inside a NAF archive.
 #[derive(Debug, Clone, Copy)]

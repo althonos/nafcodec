@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufRead;
@@ -352,28 +353,38 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
     ///
     /// This function expects that a record is available; use `Decoder::next`
     /// to check beforehand whether all sequences were read from the archive.
-    fn next_record(&mut self) -> Result<Record, Error> {
+    fn next_record(&mut self) -> Result<Record<'static>, Error> {
         let id = self
             .ids
             .as_mut()
             .and_then(|r| r.next())
             .transpose()?
-            .map(|id| id.into_string().expect("TODO"));
+            .map(|id| id.into_string().map(Cow::Owned).expect("TODO"));
         let comment = self
             .com
             .as_mut()
             .and_then(|r| r.next())
             .transpose()?
-            .map(|com| com.into_string().expect("TODO"));
+            .map(|com| com.into_string().map(Cow::Owned).expect("TODO"));
         let length = self.len.as_mut().and_then(|r| r.next()).transpose()?;
 
-        let mut sequence = None;
+        let mut sequence: Option<Cow<'static, str>> = None;
         let mut quality = None;
         if let Some(l) = length {
-            sequence = self.seq.as_mut().map(|r| r.next(l)).transpose()?;
-            quality = self.qual.as_mut().map(|r| r.next(l)).transpose()?;
-            if let Some(mut seq) = sequence.as_mut() {
-                self.mask_sequence(&mut seq)?;
+            sequence = self
+                .seq
+                .as_mut()
+                .map(|r| r.next(l))
+                .transpose()?
+                .map(Cow::Owned);
+            quality = self
+                .qual
+                .as_mut()
+                .map(|r| r.next(l))
+                .transpose()?
+                .map(Cow::Owned);
+            if let Some(seq) = sequence.as_mut() {
+                self.mask_sequence(seq.to_mut())?;
             }
         }
 
@@ -388,9 +399,9 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
     }
 
     /// Attempt to mask some regions of the given sequence.
-    fn mask_sequence(&mut self, sequence: &mut String) -> Result<(), Error> {
+    fn mask_sequence(&mut self, sequence: &mut str) -> Result<(), Error> {
         let mut mask = self.unit.clone();
-        let mut seq = sequence.as_mut_str();
+        let mut seq = sequence;
 
         if let Some(mask_reader) = self.mask.as_mut() {
             loop {
@@ -431,7 +442,7 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
 }
 
 impl<R: BufRead + Seek> Iterator for Decoder<'_, R> {
-    type Item = Result<Record, Error>;
+    type Item = Result<Record<'static>, Error>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.n as u64 >= self.header.number_of_sequences() {
             return None;

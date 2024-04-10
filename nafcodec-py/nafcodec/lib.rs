@@ -5,11 +5,7 @@ extern crate pyo3;
 
 mod pyfile;
 
-use self::pyfile::PyFileRead;
-use self::pyfile::PyFileReadWrapper;
-use self::pyfile::PyFileWrite;
-use self::pyfile::PyFileWriteWrapper;
-
+use std::borrow::Cow;
 use std::io::BufReader;
 use std::ops::DerefMut;
 
@@ -25,6 +21,11 @@ use pyo3::types::PyDict;
 use pyo3::types::PyList;
 use pyo3::types::PyString;
 use pyo3::PyTypeInfo;
+
+use self::pyfile::PyFileRead;
+use self::pyfile::PyFileReadWrapper;
+use self::pyfile::PyFileWrite;
+use self::pyfile::PyFileWriteWrapper;
 
 /// Convert a `nafcodec::error::Error` into a Python exception.
 fn convert_error(_py: Python, error: nafcodec::error::Error, path: Option<&str>) -> PyErr {
@@ -244,7 +245,7 @@ impl Record {
     }
 }
 
-impl pyo3::conversion::IntoPy<Record> for nafcodec::Record {
+impl<'a> pyo3::conversion::IntoPy<Record> for nafcodec::Record<'a> {
     fn into_py(self, py: Python<'_>) -> Record {
         let id = self.id.map(|x| PyString::new_bound(py, &x).into());
         let sequence = self.sequence.map(|x| PyString::new_bound(py, &x).into());
@@ -261,7 +262,7 @@ impl pyo3::conversion::IntoPy<Record> for nafcodec::Record {
     }
 }
 
-impl TryFrom<&Record> for nafcodec::Record {
+impl TryFrom<&Record> for nafcodec::Record<'static> {
     type Error = PyErr;
     fn try_from(value: &Record) -> Result<Self, PyErr> {
         Python::with_gil(|py| {
@@ -270,25 +271,29 @@ impl TryFrom<&Record> for nafcodec::Record {
                 .as_ref()
                 .map(|s| s.to_str(py))
                 .transpose()?
-                .map(String::from);
+                .map(String::from)
+                .map(Cow::Owned);
             let comment = value
                 .comment
                 .as_ref()
                 .map(|s| s.to_str(py))
                 .transpose()?
-                .map(String::from);
+                .map(String::from)
+                .map(Cow::Owned);
             let sequence = value
                 .sequence
                 .as_ref()
                 .map(|s| s.to_str(py))
                 .transpose()?
-                .map(String::from);
+                .map(String::from)
+                .map(Cow::Owned);
             let quality = value
                 .quality
                 .as_ref()
                 .map(|s| s.to_str(py))
                 .transpose()?
-                .map(String::from);
+                .map(String::from)
+                .map(Cow::Owned);
             let length = value.length.clone();
             Ok(nafcodec::Record {
                 id,

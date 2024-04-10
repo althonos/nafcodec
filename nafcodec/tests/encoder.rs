@@ -1,5 +1,6 @@
 extern crate nafcodec;
 
+use std::borrow::Cow;
 use std::io::Cursor;
 
 use nafcodec::Decoder;
@@ -8,20 +9,20 @@ use nafcodec::Flag;
 use nafcodec::Record;
 use nafcodec::SequenceType::Dna;
 
-fn test_records() -> Vec<Record> {
+fn test_records() -> Vec<Record<'static>> {
     vec![
         Record {
-            id: Some(String::from("r1")),
-            comment: Some(String::from("record 1")),
-            sequence: Some(String::from("NGCTCTTAAACCTGCTA")),
-            quality: Some(String::from("#8CCCGGGGGGGGGGGG")),
+            id: Some(Cow::from("r1")),
+            comment: Some(Cow::from("record 1")),
+            sequence: Some(Cow::from("NGCTCTTAAACCTGCTA")),
+            quality: Some(Cow::from("#8CCCGGGGGGGGGGGG")),
             length: Some(17),
         },
         Record {
-            id: Some(String::from("r2")),
-            comment: Some(String::from("record 2")),
-            sequence: Some(String::from("NTAATAAGCAATGACGGCAGC")),
-            quality: Some(String::from("#8AACCFF<FFGGFGE@@@@@")),
+            id: Some(Cow::from("r2")),
+            comment: Some(Cow::from("record 2")),
+            sequence: Some(Cow::from("NTAATAAGCAATGACGGCAGC")),
+            quality: Some(Cow::from("#8AACCFF<FFGGFGE@@@@@")),
             length: Some(21),
         },
     ]
@@ -47,14 +48,14 @@ pub fn encode_id() {
     assert!(!decoder.header().flags().test(Flag::Quality));
 
     let r1 = decoder.next().unwrap().unwrap();
-    assert_eq!(r1.id, Some(String::from("r1")));
+    assert_eq!(r1.id, Some(Cow::from("r1")));
     assert!(r1.comment.is_none());
     assert!(r1.sequence.is_none());
     assert!(r1.quality.is_none());
     assert!(r1.length.is_none());
 
     let r2 = decoder.next().unwrap().unwrap();
-    assert_eq!(r2.id, Some(String::from("r2")));
+    assert_eq!(r2.id, Some(Cow::from("r2")));
     assert!(r2.comment.is_none());
     assert!(r2.sequence.is_none());
     assert!(r2.quality.is_none());
@@ -82,16 +83,16 @@ pub fn encode_id_sequence() {
 
     let r1 = decoder.next().unwrap().unwrap();
 
-    assert_eq!(r1.id, Some(String::from("r1")));
+    assert_eq!(r1.id, Some(Cow::from("r1")));
     assert!(r1.comment.is_none());
-    assert_eq!(r1.sequence, Some(String::from("NGCTCTTAAACCTGCTA")));
+    assert_eq!(r1.sequence, Some(Cow::from("NGCTCTTAAACCTGCTA")));
     assert!(r1.quality.is_none());
     assert!(r1.length.is_some());
 
     let r2 = decoder.next().unwrap().unwrap();
-    assert_eq!(r2.id, Some(String::from("r2")));
+    assert_eq!(r2.id, Some(Cow::from("r2")));
     assert!(r2.comment.is_none());
-    assert_eq!(r2.sequence, Some(String::from("NTAATAAGCAATGACGGCAGC")));
+    assert_eq!(r2.sequence, Some(Cow::from("NTAATAAGCAATGACGGCAGC")));
     assert!(r2.quality.is_none());
     assert!(r2.length.is_some());
 }
@@ -123,13 +124,13 @@ pub fn encode_quality() {
     assert!(r1.id.is_none());
     assert!(r1.comment.is_none());
     assert!(r1.sequence.is_none());
-    assert_eq!(r1.quality, Some(String::from("#8CCCGGGGGGGGGGGG")));
+    assert_eq!(r1.quality, Some(Cow::from("#8CCCGGGGGGGGGGGG")));
     assert!(r1.length.is_some());
 
     let r2 = decoder.next().unwrap().unwrap();
     assert!(r2.id.is_none());
     assert!(r2.comment.is_none());
     assert!(r2.sequence.is_none());
-    assert_eq!(r2.quality, Some(String::from("#8AACCFF<FFGGFGE@@@@@")));
+    assert_eq!(r2.quality, Some(Cow::from("#8AACCFF<FFGGFGE@@@@@")));
     assert!(r2.length.is_some());
 }
