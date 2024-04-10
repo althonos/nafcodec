@@ -64,7 +64,7 @@ pub enum SequenceType {
 impl SequenceType {
     /// Check whether the sequence type is a nucleotide type.
     #[inline]
-    pub fn is_nucleotide(&self) -> bool {
+    pub const fn is_nucleotide(&self) -> bool {
         match self {
             Self::Dna | Self::Rna => true,
             Self::Protein | Self::Text => false,
@@ -132,12 +132,12 @@ pub struct Flags(u8);
 
 impl Flags {
     /// Create new `Flags` with all flags unset.
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self(0)
     }
 
     /// Check if the given flag is set.
-    pub fn test(&self, flag: Flag) -> bool {
+    pub const fn test(&self, flag: Flag) -> bool {
         (self.0 & flag as u8) != 0
     }
 
@@ -206,32 +206,32 @@ pub struct Header {
 
 impl Header {
     /// Get the flags of the archive header.
-    pub fn flags(&self) -> Flags {
+    pub const fn flags(&self) -> Flags {
         self.flags
     }
 
     /// Get the default line length stored in the archive.
-    pub fn line_length(&self) -> u64 {
+    pub const fn line_length(&self) -> u64 {
         self.line_length
     }
 
     /// Get the name separator used in the archive.
-    pub fn name_separator(&self) -> char {
+    pub const fn name_separator(&self) -> char {
         self.name_separator
     }
 
     /// Get the number of sequences stored in the archive.
-    pub fn number_of_sequences(&self) -> u64 {
+    pub const fn number_of_sequences(&self) -> u64 {
         self.number_of_sequences
     }
 
     /// Get the type of sequences stored in the archive.
-    pub fn sequence_type(&self) -> SequenceType {
+    pub const fn sequence_type(&self) -> SequenceType {
         self.sequence_type
     }
 
     /// Get the archive format version.
-    pub fn format_version(&self) -> FormatVersion {
+    pub const fn format_version(&self) -> FormatVersion {
         self.format_version
     }
 }
