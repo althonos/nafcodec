@@ -551,7 +551,6 @@ pub fn init<'py>(_py: Python<'py>, m: &Bound<'py, PyModule>) -> PyResult<()> {
     m.add_class::<Encoder>()?;
     m.add_class::<Record>()?;
 
-    #[cfg(not(doctest))]
     /// Open a Nucleotide Archive Format file.
     ///
     /// This function acts as a high-level wrapper and returns either

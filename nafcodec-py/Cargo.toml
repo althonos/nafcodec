@@ -14,6 +14,7 @@ categories = ["science", "parser-implementations", "compression"]
 [lib]
 crate-type = ["cdylib", "rlib"]
 path = "nafcodec/lib.rs"
+doctest = false
 
 [dependencies.nafcodec]
 path = "../nafcodec"
