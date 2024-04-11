@@ -10,11 +10,16 @@ homepage = "https://github.com/althonos/nafcodec"
 readme = "README.md"
 keywords = ["nucleotide", "archive", "biology", "bioinformatics"]
 categories = ["science", "parser-implementations", "compression"]
+build = "nafcodec/build.rs"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 path = "nafcodec/lib.rs"
 doctest = false
+
+[build-dependencies.built]
+version = "0.7"
+features = ["chrono", "cargo-lock"]
 
 [dependencies.nafcodec]
 path = "../nafcodec"
@@ -23,6 +28,7 @@ default-features = false
 features = ["arc"]
 [dependencies]
 pyo3 = "0.21.1"
+pyo3-built = "0.5.0"
 
 [features]
 default = []

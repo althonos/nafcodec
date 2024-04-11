@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+#[macro_use]
+extern crate pyo3_built;
 extern crate nafcodec;
 extern crate pyo3;
 
@@ -26,6 +28,11 @@ use self::pyfile::PyFileRead;
 use self::pyfile::PyFileReadWrapper;
 use self::pyfile::PyFileWrite;
 use self::pyfile::PyFileWriteWrapper;
+
+#[allow(dead_code)]
+mod build {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
 
 /// Convert a `nafcodec::error::Error` into a Python exception.
 fn convert_error(_py: Python, error: nafcodec::error::Error, path: Option<&str>) -> PyErr {
@@ -588,10 +595,11 @@ impl Encoder {
 /// An encoder/decoder for Nucleotide Archive Format files.
 #[pymodule]
 #[pyo3(name = "lib")]
-pub fn init<'py>(_py: Python<'py>, m: &Bound<'py, PyModule>) -> PyResult<()> {
+pub fn init<'py>(py: Python<'py>, m: &Bound<'py, PyModule>) -> PyResult<()> {
     m.add("__package__", "nafcodec")?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add("__author__", env!("CARGO_PKG_AUTHORS").replace(':', "\n"))?;
+    m.add("__build__", pyo3_built!(py, build))?;
 
     m.add_class::<Decoder>()?;
     m.add_class::<Encoder>()?;
@@ -611,17 +619,17 @@ pub fn init<'py>(_py: Python<'py>, m: &Bound<'py, PyModule>) -> PyResult<()> {
     ///         archive.
     ///     options (`object`): Additional options to pass to the
     ///         `~nafcodec.Decoder` or `~nafcodec.Encoder` constructors.
-    ///  
+    ///
     /// Example:
     ///     Open an archive and read all the records from an existing
     ///     archive into a `list`::
     ///
     ///     >>> with open("LuxC.naf") as decoder:
     ///     ...     records = list(decoder)
-    ///     
+    ///
     ///     Create a new archive for recording FASTA records (identifiers
     ///     and DNA sequences)::
-    ///     
+    ///
     ///     >>> with tempfile.NamedTemporaryFile() as dst:
     ///     ...     with open(dst, "w", id=True, sequence=True) as encoder:
     ///     ...         encoder.write(Record(id="r1", sequence="ATGC"))
