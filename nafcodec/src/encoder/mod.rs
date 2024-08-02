@@ -1,5 +1,6 @@
 use std::io::Error as IoError;
 use std::io::Write;
+use std::io::BufWriter;
 
 mod counter;
 mod storage;
@@ -66,6 +67,8 @@ pub struct EncoderBuilder {
     sequence: bool,
     quality: bool,
     comment: bool,
+    mask: bool,
+    title: bool,
     compression_level: i32,
 }
 
@@ -78,6 +81,8 @@ impl EncoderBuilder {
             quality: false,
             comment: false,
             sequence: false,
+            mask: false,
+            title: false,
             compression_level: 0,
         }
     }
@@ -101,7 +106,23 @@ impl EncoderBuilder {
         builder.quality(flags.test(Flag::Quality));
         builder.sequence(flags.test(Flag::Sequence));
         builder.comment(flags.test(Flag::Comment));
+        builder.mask(flags.test(Flag::Mask));
+        builder.title(flags.test(Flag::Title));
         builder
+    }
+
+    /// Whether or not to encode the mask data
+    #[inline]
+    pub fn mask(&mut self, mask: bool) -> &mut Self{
+        self.mask = mask;
+        self
+    }
+
+    /// Whether or not NAF file has a title
+    #[inline]
+    pub fn title(&mut self, title: bool) -> &mut Self{
+        self.title = title;
+        self
     }
 
     /// Whether or not to encode the identifier of each record.
@@ -184,6 +205,9 @@ impl EncoderBuilder {
             header.flags.set(Flag::Quality);
             header.flags.set(Flag::Length);
         }
+        if self.title {
+            header.flags.set(Flag::Title);
+        }
 
         let lens = self.new_buffer(&storage)?;
         let id = if self.id {
@@ -210,6 +234,19 @@ impl EncoderBuilder {
             None
         };
 
+        let title = if self.title {
+            let title_buffer = storage.create_buffer()?;
+            Some(BufWriter::new(title_buffer))
+        } else {
+            None
+        };
+
+        let mask = if self.mask {
+            Some(WriteCounter::new(self.new_buffer(&storage)?))
+        } else {
+            None
+        };
+
         Ok(Encoder {
             header,
             storage,
@@ -217,6 +254,8 @@ impl EncoderBuilder {
             qual,
             com,
             id,
+            title,
+            mask,
             len: WriteCounter::new(lens),
         })
     }
@@ -232,12 +271,13 @@ impl EncoderBuilder {
 pub struct Encoder<'z, S: Storage> {
     header: Header,
     storage: S,
+    title: Option<BufWriter<S::Buffer>>,
     id: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
     len: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
     com: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
     seq: Option<WriteCounter<SequenceWriter<zstd::Encoder<'z, S::Buffer>>>>,
     qual: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
-    // mask: WriteCounter<zstd::Encoder<'z, S::Buffer>>,
+    mask: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
 }
 
 impl<S: Storage> Encoder<'_, S> {
@@ -271,7 +311,7 @@ impl<S: Storage> Encoder<'_, S> {
             if let Some(seq) = record.sequence.as_ref() {
                 let length = seq.len();
                 write_length(length as u64, &mut self.len)?;
-                if let Err(e) = seq_writer.write(seq.as_bytes()) {
+                if let Err(e) = seq_writer.write(seq) {
                     if e.kind() == std::io::ErrorKind::InvalidData {
                         return Err(Error::InvalidSequence);
                     } else {
@@ -296,6 +336,21 @@ impl<S: Storage> Encoder<'_, S> {
         }
 
         self.header.number_of_sequences += 1;
+        Ok(())
+    }
+
+    /// Push a Title to the archive.
+    ///
+    /// The title is a string slice which is stored uncompressed
+    pub fn push_title(&mut self, title: &str) -> Result<(), Error> {
+        if let Some(title_writer) = self.title.as_mut() {
+            let length = title.len();
+            write_length(length as u64, &mut self.len)?;
+            title_writer.write_all(title.as_bytes())?;
+            title_writer.flush()?;
+        } else {
+            return Err(Error::MissingField("title"));
+        }
         Ok(())
     }
 
@@ -325,6 +380,15 @@ impl<S: Storage> Encoder<'_, S> {
 
         write_variable_length(self.header.line_length, &mut file)?;
         write_variable_length(self.header.number_of_sequences, &mut file)?;
+
+        if let Some(title) = self.title {
+            let title_buffer_result = title.into_inner();
+            if let Ok(title_buffer) = title_buffer_result {
+                let title_length = self.storage.buffer_length(&title_buffer)?;
+                write_variable_length(title_length, &mut file)?;
+                self.storage.write_buffer(title_buffer, &mut file)?;
+            }
+        }
 
         // -- ids ---
 
@@ -371,7 +435,7 @@ mod tests {
         let r1 = Record {
             id: Some("r1".into()),
             comment: Some("record 1".into()),
-            sequence: Some("MYYK".into()),
+            sequence: Some(b"MYYK".into()),
             ..Default::default()
         };
         encoder.push(&r1).unwrap();
@@ -379,7 +443,7 @@ mod tests {
         let r2 = Record {
             id: Some("r2".into()),
             comment: Some("record 2".into()),
-            sequence: Some("MTTE".into()),
+            sequence: Some(b"MTTE".into()),
             ..Default::default()
         };
         encoder.push(&r2).unwrap();
@@ -400,7 +464,7 @@ mod tests {
         let r1 = Record {
             id: Some("r1".into()),
             comment: Some("record 1".into()),
-            sequence: Some("ATTATTGC".into()),
+            sequence: Some(b"ATTATTGC".into()),
             ..Default::default()
         };
         encoder.push(&r1).unwrap();
@@ -408,7 +472,7 @@ mod tests {
         let r2 = Record {
             id: Some("r2".into()),
             comment: Some("record 2".into()),
-            sequence: Some("ATATGVBGD".into()),
+            sequence: Some(b"ATATGVBGD".into()),
             ..Default::default()
         };
         encoder.push(&r2).unwrap();

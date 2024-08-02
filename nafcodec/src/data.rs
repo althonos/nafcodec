@@ -5,6 +5,7 @@
 use std::borrow::Cow;
 use std::ops::BitOr;
 use std::ops::BitOrAssign;
+use std::fmt;
 
 /// A single masked unit with associated status decoded from the mask block.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,12 +33,15 @@ pub struct Record<'a> {
     /// The record comment (description).
     pub comment: Option<Cow<'a, str>>,
     /// The record sequence.
-    pub sequence: Option<Cow<'a, str>>,
+    pub sequence: Option<Cow<'a, [u8]>>,
     /// The record quality string.
     pub quality: Option<Cow<'a, str>>,
     /// The record sequence length.
     pub length: Option<u64>,
 }
+
+
+// TODO: implement FASTA/FASTQ IO for Record
 
 // --- FormatVersion -----------------------------------------------------------
 
@@ -245,6 +249,36 @@ impl Default for Header {
             name_separator: ' ',
             line_length: 60,
             number_of_sequences: 0,
+        }
+    }
+}
+
+//---- Size ---------------------------------------------------------------------
+
+#[derive(Debug, Clone)]
+pub struct Size {
+    block: String,
+    original_size: u64,
+    compressed_size: u64
+}
+
+impl Size {
+    pub fn new(block: String, original_size: u64, compressed_size: Option<u64>) -> Self {
+        let compressed_size_real = { if None == compressed_size { original_size } else { compressed_size.unwrap() } };
+        Size{block, original_size, compressed_size: compressed_size_real}
+    }
+}
+
+impl fmt::Display for Size {
+    fn fmt(&self, f:&mut fmt::Formatter) -> fmt::Result {
+        if self.original_size == self.compressed_size {
+            write!(f, "{}: {}",self.block,self.original_size)
+        } else {
+            write!(f, "{}: {} / {} ({:.3}%)",
+                self.block,
+                self.compressed_size,
+                self.original_size,
+                (self.compressed_size as f32 * 100.0)/(self.original_size as f32))
         }
     }
 }

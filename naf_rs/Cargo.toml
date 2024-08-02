@@ -1,0 +1,12 @@
+[package]
+name = "naf_rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bio = "2.0.1"
+clap = { version = "4.5.9", features = ["derive", "env"] }
+nafcodec = { version = "0.2.0", path = "../nafcodec" }
+tempfile = "3.10.1"

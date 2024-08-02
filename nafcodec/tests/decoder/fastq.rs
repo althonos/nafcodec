@@ -3,6 +3,7 @@ use nafcodec::DecoderBuilder;
 use nafcodec::Flag;
 use nafcodec::Header;
 use nafcodec::SequenceType;
+use std::str;
 
 const ARCHIVE: &[u8] = include_bytes!("../../../data/phix.naf");
 
@@ -40,7 +41,7 @@ fn decode() {
         "a comment that should not be included in the SAM output"
     );
     let seq = r1.sequence.unwrap();
-    assert!(seq.starts_with("NGCTCTTAAACCTGCTATTGAGGCTTGTGGCATTTC"));
+    assert!(str::from_utf8(&seq).unwrap().starts_with("NGCTCTTAAACCTGCTATTGAGGCTTGTGGCATTTC"));
     let qual = r1.quality.unwrap();
     assert!(qual.starts_with("#8CCCGGGGGGGGGGGGGGGGGGGGGGGGGG"));
 

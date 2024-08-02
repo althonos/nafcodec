@@ -1,0 +1,26 @@
+[package]
+name = "nafcodec-ffi"
+crate-type = ["rlib", "cdylib"]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Rust coder/decoder FFI library for Nucleotide Archive Format (NAF) files."
+repository = "https://github.com/althonos/nafcodec"
+homepage = "https://github.com/althonos/nafcodec"
+readme = "README.md"
+keywords = ["nucleotide", "archive", "biology", "bioinformatics"]
+categories = ["science", "parser-implementations", "compression"]
+
+[dependencies.nafcodec]
+path = "../nafcodec"
+version = "0.2.0"
+default-features = false
+features = ["arc"]
+[dependencies]
+libc = "0.2.85"
+serde = "1.0.164"
+phf = {version="0.11.2", features=["macros"]}
+snafu = "0.7.5"
+safer-ffi = "0.1.8"
+
+
