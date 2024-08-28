@@ -134,3 +134,14 @@ pub fn encode_quality() {
     assert_eq!(r2.quality, Some(Cow::from("#8AACCFF<FFGGFGE@@@@@")));
     assert!(r2.length.is_some());
 }
+
+#[test]
+fn encode_title(){
+    let mut encoder = EncoderBuilder::from_flags(Dna,Flag::Title).with_memory().unwrap();
+    encoder.push_title("TITLE_TEST").unwrap();
+    let mut buffer = Vec::new();
+    encoder.write(&mut buffer).unwrap();
+
+    let decoder = Decoder::new(Cursor::new(buffer)).unwrap();
+    assert_eq!(decoder.title().unwrap(),"TITLE_TEST");
+}
