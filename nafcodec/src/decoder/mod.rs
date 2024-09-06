@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -51,7 +50,7 @@ type ZstdDecoder<'z, R> = BufReader<zstd::Decoder<'z, BufReader<IoSlice<R>>>>;
 ///     println!(">{}", record.id.unwrap());
 /// }
 /// ```
-#[derive(Debug, Clone)]
+//#[derive(Debug, Clone)]
 pub struct DecoderBuilder {
     buffer_size: usize,
     id: bool,
@@ -101,6 +100,7 @@ impl DecoderBuilder {
         builder.sequence(flags.test(Flag::Sequence));
         builder.mask(flags.test(Flag::Mask));
         builder.comment(flags.test(Flag::Comment));
+        builder.title(flags.test(Flag::Title));
         builder
     }
 
@@ -151,6 +151,13 @@ impl DecoderBuilder {
         self
     }
 
+    /// Whether or not Title is in NAF frame
+    #[inline]
+    pub fn title(&mut self, title: bool) -> &mut Self {
+        self.title = title;
+        self
+    }
+
     /// Consume the builder to get a decoder reading data from the given buffer.
     pub fn with_bytes<'data, 'z>(
         &self,
@@ -170,7 +177,7 @@ impl DecoderBuilder {
     }
 
     /// Consume the builder and get the sizes from the archive from a given path
-    pub fn sizes_from_path<'z, P: AsRef<Path>>(
+    pub fn sizes_from_path<P: AsRef<Path>>(
         &self,
         path: P
     ) -> Result<Vec<Size>,Error> {
@@ -180,13 +187,13 @@ impl DecoderBuilder {
     }
 
     /// Consume the builder and get the sizes from the archive 
-    pub fn sizes_from_reader<'z, R: BufRead + Seek>(&self, mut reader: R) -> Result<Vec<Size>,Error> {
+    pub fn sizes_from_reader<R: BufRead + Seek>(&self, mut reader: R) -> Result<Vec<Size>,Error> {
         let buffer = reader.fill_buf()?;
-        let header = match self::parser::header(buffer) {
-            Ok((i, header)) => {
+        let naf_header = match self::parser::header(buffer) {
+            Ok((i, naf_header)) => {
                 let consumed = buffer.len() - i.len();
                 reader.consume(consumed);
-                header
+                naf_header
             }
             Err(nom::Err::Incomplete(_)) => {
                 return Err(Error::from(std::io::Error::new(
@@ -222,7 +229,7 @@ impl DecoderBuilder {
             };
         }
         let rc = Rc::new(RwLock::new(reader));
-        let flags = header.flags();
+        let flags = naf_header.flags();
         extract_sizes!(flags, Title, self.title, rc, title_size,"Title".to_owned());
         extract_sizes!(flags, Id, self.id, rc, ids_size,"IDs".to_owned());
         extract_sizes!(flags, Comment, self.comment, rc, com_size,"Name".to_owned());
@@ -243,11 +250,11 @@ impl DecoderBuilder {
         mut reader: R,
     ) -> Result<Decoder<'z, R>, Error> {
         let buffer = reader.fill_buf()?;
-        let header = match self::parser::header(buffer) {
-            Ok((i, header)) => {
+        let naf_header = match self::parser::header(buffer) {
+            Ok((i, naf_header)) => {
                 let consumed = buffer.len() - i.len();
                 reader.consume(consumed);
-                header
+                naf_header
             }
             Err(nom::Err::Incomplete(_)) => {
                 return Err(Error::from(std::io::Error::new(
@@ -260,7 +267,7 @@ impl DecoderBuilder {
             }
         };
 
-        let title = if header.flags().test(Flag::Title) {
+        let title = if naf_header.flags().test(Flag::Title) {
             let buf = reader.fill_buf()?;
             let (i, _title) = self::parser::title(buf)?;
             let consumed = buf.len() - i.len();
@@ -308,8 +315,21 @@ impl DecoderBuilder {
             };
         }
 
-        let flags = header.flags();
+        let flags = naf_header.flags();
         let mut seqlen = 0;
+        /*
+        let title = if flags.test(Flag::Title) && self.title {
+            let mut handle = rc.write().unwrap();
+            let buf = handle.fill_buf()?;
+            let (i, original_size) = self::parser::variable_u64(buf)?;
+            let consumed = buf.len() - i.len();
+            println!("{}",original_size);
+            println!("{:?}",&i[0..original_size as usize]);
+            let ret = Some(str::from_utf8(&i[consumed..original_size as usize])?.to_owned());
+            handle.consume(consumed);
+            handle.seek(SeekFrom::Current(original_size as i64))?;
+            ret
+        } else { None };*/
         setup_block!(flags, Id, self.id, rc, ids_block);
         setup_block!(flags, Comment, self.comment, rc, com_block);
         setup_block!(flags, Length, true, rc, len_block);
@@ -321,12 +341,12 @@ impl DecoderBuilder {
             ids: ids_block.map(CStringReader::new),
             com: com_block.map(CStringReader::new),
             len: len_block.map(LengthReader::new),
-            seq: seq_block.map(|x| SequenceReader::new(x, header.sequence_type())),
+            seq: seq_block.map(|x| SequenceReader::new(x, naf_header.sequence_type())),
             qual: quality_block.map(|x| SequenceReader::new(x, SequenceType::Text)),
             mask: mask_block.map(|x| MaskReader::new(x, seqlen)),
             title, 
             n: 0,
-            header,
+            header:naf_header,
             reader: rc,
             unit: MaskUnit::Unmasked(0),
         })

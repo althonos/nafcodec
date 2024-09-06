@@ -16,12 +16,16 @@ use nafcodec::Encoder;
 use nafcodec::EncoderBuilder;
 use nafcodec::Memory;
 use nafcodec::Storage;
+mod ennaf;
+mod unnaf;
 use safer_ffi::*;
 
 use std::os::raw::c_char;
 
 #[no_mangle]
-pub extern "C" fn ...
+pub extern "C" fn print_title(filename: String) -> String {
+    todo!();
+}
 
 #[cfg(test)]
 mod tests {

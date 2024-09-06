@@ -182,9 +182,8 @@ impl EncoderBuilder {
 
     /// Consume the builder to get an encoder using the given storage.
     pub fn with_storage<'z, S: Storage>(&self, storage: S) -> Result<Encoder<'z, S>, Error> {
-        let mut header = Header::default();
+        let mut header = Header{sequence_type:self.sequence_type, ..Default::default()};
 
-        header.sequence_type = self.sequence_type;
         if self.sequence_type == SequenceType::Dna {
             header.format_version = FormatVersion::V1;
         } else {
@@ -241,11 +240,11 @@ impl EncoderBuilder {
             None
         };
 
-        let mask = if self.mask {
+        /*let mask = if self.mask {
             Some(WriteCounter::new(self.new_buffer(&storage)?))
         } else {
             None
-        };
+        };*/
 
         Ok(Encoder {
             header,
@@ -255,7 +254,7 @@ impl EncoderBuilder {
             com,
             id,
             title,
-            mask,
+            mask: self.mask,
             len: WriteCounter::new(lens),
         })
     }
@@ -277,7 +276,7 @@ pub struct Encoder<'z, S: Storage> {
     com: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
     seq: Option<WriteCounter<SequenceWriter<zstd::Encoder<'z, S::Buffer>>>>,
     qual: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
-    mask: Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
+    mask: bool,//Option<WriteCounter<zstd::Encoder<'z, S::Buffer>>>,
 }
 
 impl<S: Storage> Encoder<'_, S> {
@@ -311,12 +310,12 @@ impl<S: Storage> Encoder<'_, S> {
             if let Some(seq) = record.sequence.as_ref() {
                 let length = seq.len();
                 write_length(length as u64, &mut self.len)?;
+                if self.mask { todo!() }
                 if let Err(e) = seq_writer.write(seq) {
                     if e.kind() == std::io::ErrorKind::InvalidData {
                         return Err(Error::InvalidSequence);
-                    } else {
-                        return Err(Error::Io(e));
-                    }
+                    } 
+                    return Err(Error::Io(e));
                 }
                 seq_writer.flush()?;
             } else {
@@ -483,6 +482,7 @@ mod tests {
 
         let decoder = crate::Decoder::from_path("/tmp/test2.naf").unwrap();
         let records = decoder.collect::<Vec<_>>();
+        println!("{:?}",records);
         assert_eq!(records.len(), 2);
     }
 }

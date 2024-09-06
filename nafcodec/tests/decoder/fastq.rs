@@ -41,7 +41,8 @@ fn decode() {
         "a comment that should not be included in the SAM output"
     );
     let seq = r1.sequence.unwrap();
-    assert!(str::from_utf8(&seq).unwrap().starts_with("NGCTCTTAAACCTGCTATTGAGGCTTGTGGCATTTC"));
+    let seq_str = str::from_utf8(&seq).unwrap();
+    assert_eq!(&seq_str[0..(67-31)],"NGCTCTTAAACCTGCTATTGAGGCTTGTGGCATTTC");
     let qual = r1.quality.unwrap();
     assert!(qual.starts_with("#8CCCGGGGGGGGGGGGGGGGGGGGGGGGGG"));
 

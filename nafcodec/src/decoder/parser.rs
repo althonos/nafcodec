@@ -30,11 +30,11 @@ pub fn variable_u64(i: &[u8]) -> IResult<&[u8], u64> {
     let mut num = 0;
     let mut basis = 1;
 
-    num += ((last & 0x7F) as u64) * basis;
+    num += u64::from(last & 0x7F) * basis;
     basis *= 128;
 
     for &limb in limbs.iter().rev() {
-        if let Some(x) = num.checked_add(((limb & 0x7F) as u64) * basis) {
+        if let Some(x) = num.checked_add(u64::from(limb & 0x7F) * basis) {
             num = x;
             basis *= 128;
         } else {
@@ -134,7 +134,6 @@ pub fn title(i: &[u8]) -> IResult<&[u8], &str> {
 }
 
 mod tests {
-
     #[test]
     fn header() {
         const HEADER: [u8; 8] = [0x01, 0xF9, 0xEC, 0x01, 0x3E, 0x20, 0x3C, 0x20];
