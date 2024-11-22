@@ -274,8 +274,8 @@ impl Default for Header {
 #[derive(Debug, Clone)]
 pub struct Size {
     block: String,
-    original: u64,
-    compressed: u64
+    pub original: u64,
+    pub compressed: u64
 }
 
 impl Size {
