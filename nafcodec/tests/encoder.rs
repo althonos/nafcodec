@@ -14,14 +14,14 @@ fn test_records() -> Vec<Record<'static>> {
         Record {
             id: Some(Cow::from("r1")),
             comment: Some(Cow::from("record 1")),
-            sequence: Some(Cow::from("NGCTCTTAAACCTGCTA")),
+            sequence: Some(Cow::from(b"NGCTCTTAAACCTGCTA")),
             quality: Some(Cow::from("#8CCCGGGGGGGGGGGG")),
             length: Some(17),
         },
         Record {
             id: Some(Cow::from("r2")),
             comment: Some(Cow::from("record 2")),
-            sequence: Some(Cow::from("NTAATAAGCAATGACGGCAGC")),
+            sequence: Some(Cow::from(b"NTAATAAGCAATGACGGCAGC")),
             quality: Some(Cow::from("#8AACCFF<FFGGFGE@@@@@")),
             length: Some(21),
         },
@@ -85,14 +85,14 @@ pub fn encode_id_sequence() {
 
     assert_eq!(r1.id, Some(Cow::from("r1")));
     assert!(r1.comment.is_none());
-    assert_eq!(r1.sequence, Some(Cow::from("NGCTCTTAAACCTGCTA")));
+    assert_eq!(r1.sequence, Some(Cow::from(b"NGCTCTTAAACCTGCTA")));
     assert!(r1.quality.is_none());
     assert!(r1.length.is_some());
 
     let r2 = decoder.next().unwrap().unwrap();
     assert_eq!(r2.id, Some(Cow::from("r2")));
     assert!(r2.comment.is_none());
-    assert_eq!(r2.sequence, Some(Cow::from("NTAATAAGCAATGACGGCAGC")));
+    assert_eq!(r2.sequence, Some(Cow::from(b"NTAATAAGCAATGACGGCAGC")));
     assert!(r2.quality.is_none());
     assert!(r2.length.is_some());
 }
@@ -133,4 +133,15 @@ pub fn encode_quality() {
     assert!(r2.sequence.is_none());
     assert_eq!(r2.quality, Some(Cow::from("#8AACCFF<FFGGFGE@@@@@")));
     assert!(r2.length.is_some());
+}
+
+#[test]
+fn encode_title(){
+    let mut encoder = EncoderBuilder::from_flags(Dna,Flag::Title).with_memory().unwrap();
+    encoder.push_title("TITLE_TEST").unwrap();
+    let mut buffer = Vec::new();
+    encoder.write(&mut buffer).unwrap();
+
+    let decoder = Decoder::new(Cursor::new(buffer)).unwrap();
+    assert_eq!(decoder.title().unwrap(),"TITLE_TEST");
 }

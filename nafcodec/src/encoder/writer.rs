@@ -1,7 +1,14 @@
+use cfg_if::cfg_if;
 use std::io::Error as IoError;
 use std::io::Write;
 
 use crate::data::SequenceType;
+#[cfg(feature="lut")]
+const MINIBYTE_LUT: [u8;32] = [
+    0, 8, 7, 4, 11, 0, 0, 2,13,
+    0, 0, 3,  0,12,15, 0, 0,
+    0,10, 6,  1, 1,14, 9, 0,
+    5, 0,  0, 0, 0, 0, 0];
 
 pub struct SequenceWriter<W: Write> {
     ty: SequenceType,
@@ -21,10 +28,22 @@ impl<W: Write> SequenceWriter<W> {
     pub fn into_inner(mut self) -> Result<W, IoError> {
         // make sure to write the last letter of the last sequence if any.
         if let Some(letter) = self.cache.take() {
-            self.writer.write_all(&[self.encode(letter)?])?;
+            cfg_if!{
+                if #[cfg(features="lut")] {
+                    self.writer.write_all(&[self.encode_lut(letter)?])?;
+                } else {
+                    self.writer.write_all(&[self.encode(letter)?])?;
+                }
+            }
         }
         self.writer.flush()?;
         Ok(self.writer)
+    }
+
+    #[cfg(feature="lut")]
+    #[inline]
+    fn encode_lut(&self, c: u8) -> Result<u8,IoError> {
+            Ok(MINIBYTE_LUT[usize::from(c&(30|c>>6))])
     }
 
     #[inline]
@@ -69,7 +88,13 @@ impl<W: Write> Write for SequenceWriter<W> {
         let mut bytes = s;
         let mut encoded = Vec::with_capacity((s.len() + 1) / 2);
         if let Some(letter) = self.cache.take() {
-            let c = (self.encode(s[0])? << 4) | self.encode(letter)?;
+            cfg_if!{
+                if #[cfg(feature="lut")] {
+                    let c = (self.encode_lut(s[0])? << 4) | self.encode(letter)?;
+                } else {
+                    let c = (self.encode(s[0])? << 4) | self.encode(letter)?;
+                }
+            }
             encoded.push(c);
             bytes = &s[1..];
         }
@@ -79,7 +104,13 @@ impl<W: Write> Write for SequenceWriter<W> {
                 assert!(self.cache.is_none());
                 self.cache = Some(chunk[0]);
             } else {
-                let c = (self.encode(chunk[1])? << 4) | self.encode(chunk[0])?;
+                cfg_if!{
+                    if #[cfg(feature="lut")] {
+                        let c = (self.encode_lut(chunk[1])? << 4) | self.encode_lut(chunk[0])?;
+                    } else {
+                        let c = (self.encode(chunk[1])? << 4) | self.encode(chunk[0])?;
+                    }
+                }
                 encoded.push(c);
             }
         }

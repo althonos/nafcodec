@@ -1,6 +1,12 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(feature = "nightly", feature(seek_stream_len))]
 #![cfg_attr(feature = "nightly", feature(iter_advance_by))]
+#![warn(
+    missing_docs,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::pedantic
+)]
 
 mod data;
 mod decoder;

@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -9,6 +8,7 @@ use std::io::SeekFrom;
 use std::iter::FusedIterator;
 use std::path::Path;
 use std::sync::RwLock;
+use std::str;
 
 mod ioslice;
 mod parser;
@@ -26,6 +26,7 @@ use crate::data::Header;
 use crate::data::MaskUnit;
 use crate::data::Record;
 use crate::data::SequenceType;
+use crate::data::Size;
 use crate::error::Error;
 
 /// The wrapper used to decode Zstandard stream.
@@ -49,7 +50,7 @@ type ZstdDecoder<'z, R> = BufReader<zstd::Decoder<'z, BufReader<IoSlice<R>>>>;
 ///     println!(">{}", record.id.unwrap());
 /// }
 /// ```
-#[derive(Debug, Clone)]
+//#[derive(Debug, Clone)]
 pub struct DecoderBuilder {
     buffer_size: usize,
     id: bool,
@@ -57,6 +58,7 @@ pub struct DecoderBuilder {
     sequence: bool,
     quality: bool,
     mask: bool,
+    title: bool,
 }
 
 impl DecoderBuilder {
@@ -72,6 +74,7 @@ impl DecoderBuilder {
             sequence: true,
             quality: true,
             mask: true,
+            title: true
         }
     }
 
@@ -97,6 +100,7 @@ impl DecoderBuilder {
         builder.sequence(flags.test(Flag::Sequence));
         builder.mask(flags.test(Flag::Mask));
         builder.comment(flags.test(Flag::Comment));
+        builder.title(flags.test(Flag::Title));
         builder
     }
 
@@ -147,6 +151,13 @@ impl DecoderBuilder {
         self
     }
 
+    /// Whether or not Title is in NAF frame
+    #[inline]
+    pub fn title(&mut self, title: bool) -> &mut Self {
+        self.title = title;
+        self
+    }
+
     /// Consume the builder to get a decoder reading data from the given buffer.
     pub fn with_bytes<'data, 'z>(
         &self,
@@ -165,17 +176,85 @@ impl DecoderBuilder {
             .and_then(|f| self.with_reader(std::io::BufReader::new(f)))
     }
 
+    /// Consume the builder and get the sizes from the archive from a given path
+    pub fn sizes_from_path<P: AsRef<Path>>(
+        &self,
+        path: P
+    ) -> Result<Vec<Size>,Error> {
+        File::open(path.as_ref())
+            .map_err(Error::from)
+            .and_then(|f| self.sizes_from_reader(std::io::BufReader::new(f)))
+    }
+
+    /// Consume the builder and get the sizes from the archive 
+    pub fn sizes_from_reader<R: BufRead + Seek>(&self, mut reader: R) -> Result<Vec<Size>,Error> {
+        let buffer = reader.fill_buf()?;
+        let naf_header = match self::parser::header(buffer) {
+            Ok((i, naf_header)) => {
+                let consumed = buffer.len() - i.len();
+                reader.consume(consumed);
+                naf_header
+            }
+            Err(nom::Err::Incomplete(_)) => {
+                return Err(Error::from(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "failed to read header",
+                )));
+            }
+            Err(nom::Err::Error(e) | nom::Err::Failure(e)) => {
+                return Err(Error::from(e));
+            }
+        };
+        macro_rules! extract_sizes {
+            ($flags:expr, $flag:ident, $use_block:expr, $rc:ident, $size:ident, $name:expr) => {
+                let $size;
+                if $flags.test(Flag::$flag) {
+                    let mut handle = $rc.write().unwrap();
+                    // decode the block size
+                    let buf = handle.fill_buf()?;
+                    let (i, original_size) = self::parser::variable_u64(buf)?;
+                    let (i2,compressed_size) = self::parser::variable_u64(i)?;
+                    let block_size;    
+                    $size = if Flag::$flag == Flag::Title {
+                        block_size = (buf.len()-i.len()+original_size as usize);
+                        Some(Size::new($name,original_size,None))
+                    } else {
+                        block_size = (buf.len()-i2.len()+compressed_size as usize);
+                        Some(Size::new($name,original_size,Some(compressed_size)))
+                    };
+                    handle.consume(block_size);
+                } else {
+                    $size = None;
+                }
+            };
+        }
+        let rc = Rc::new(RwLock::new(reader));
+        let flags = naf_header.flags();
+        extract_sizes!(flags, Title, self.title, rc, title_size,"Title".to_owned());
+        extract_sizes!(flags, Id, self.id, rc, ids_size,"IDs".to_owned());
+        extract_sizes!(flags, Comment, self.comment, rc, com_size,"Name".to_owned());
+        extract_sizes!(flags, Length, true, rc, len_size,"Length".to_owned());
+        extract_sizes!(flags, Mask, self.mask, rc, mask_size,"Mask".to_owned());
+        extract_sizes!(flags, Sequence, self.sequence, rc, seq_size, "Sequence".to_owned());
+        extract_sizes!(flags, Quality, self.quality, rc, quality_size, "Quality".to_owned());
+        let retvec: Vec<Option<Size>> = vec![title_size,ids_size,com_size,len_size,mask_size,seq_size,quality_size];
+        Ok(retvec
+            .iter()
+            .filter_map(|x| x.clone())
+            .collect())
+    }
+
     /// Consume the builder to get a decoder reading data from `reader`.
     pub fn with_reader<'z, R: BufRead + Seek>(
         &self,
         mut reader: R,
     ) -> Result<Decoder<'z, R>, Error> {
         let buffer = reader.fill_buf()?;
-        let header = match self::parser::header(buffer) {
-            Ok((i, header)) => {
+        let naf_header = match self::parser::header(buffer) {
+            Ok((i, naf_header)) => {
                 let consumed = buffer.len() - i.len();
                 reader.consume(consumed);
-                header
+                naf_header
             }
             Err(nom::Err::Incomplete(_)) => {
                 return Err(Error::from(std::io::Error::new(
@@ -188,12 +267,16 @@ impl DecoderBuilder {
             }
         };
 
-        if header.flags().test(Flag::Title) {
+        let title = if naf_header.flags().test(Flag::Title) {
             let buf = reader.fill_buf()?;
             let (i, _title) = self::parser::title(buf)?;
             let consumed = buf.len() - i.len();
+            let ret = Some(_title.to_owned());
             reader.consume(consumed);
-        }
+            ret
+        } else {
+            None
+        };
 
         let rc = Rc::new(RwLock::new(reader));
         macro_rules! setup_block {
@@ -232,8 +315,21 @@ impl DecoderBuilder {
             };
         }
 
-        let flags = header.flags();
+        let flags = naf_header.flags();
         let mut seqlen = 0;
+        /*
+        let title = if flags.test(Flag::Title) && self.title {
+            let mut handle = rc.write().unwrap();
+            let buf = handle.fill_buf()?;
+            let (i, original_size) = self::parser::variable_u64(buf)?;
+            let consumed = buf.len() - i.len();
+            println!("{}",original_size);
+            println!("{:?}",&i[0..original_size as usize]);
+            let ret = Some(str::from_utf8(&i[consumed..original_size as usize])?.to_owned());
+            handle.consume(consumed);
+            handle.seek(SeekFrom::Current(original_size as i64))?;
+            ret
+        } else { None };*/
         setup_block!(flags, Id, self.id, rc, ids_block);
         setup_block!(flags, Comment, self.comment, rc, com_block);
         setup_block!(flags, Length, true, rc, len_block);
@@ -245,11 +341,12 @@ impl DecoderBuilder {
             ids: ids_block.map(CStringReader::new),
             com: com_block.map(CStringReader::new),
             len: len_block.map(LengthReader::new),
-            seq: seq_block.map(|x| SequenceReader::new(x, header.sequence_type())),
+            seq: seq_block.map(|x| SequenceReader::new(x, naf_header.sequence_type())),
             qual: quality_block.map(|x| SequenceReader::new(x, SequenceType::Text)),
             mask: mask_block.map(|x| MaskReader::new(x, seqlen)),
+            title, 
             n: 0,
-            header,
+            header:naf_header,
             reader: rc,
             unit: MaskUnit::Unmasked(0),
         })
@@ -271,7 +368,7 @@ impl Default for DecoderBuilder {
 ///
 /// By default, the decoder will decode all available fields, which may not
 /// be needed. Use a [`DecoderBuilder`] to configure decoding of individual
-/// fields.
+/// fields. 
 ///
 /// # Thread safety
 ///
@@ -291,6 +388,7 @@ pub struct Decoder<'z, R: BufRead + Seek> {
     seq: Option<SequenceReader<ZstdDecoder<'z, R>>>,
     qual: Option<SequenceReader<ZstdDecoder<'z, R>>>,
     mask: Option<MaskReader<ZstdDecoder<'z, R>>>,
+    title: Option<String>,
     n: usize,
     unit: MaskUnit,
 }
@@ -327,6 +425,17 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
         &self.header
     }
 
+    /// Get the Title of the archive.
+    ///
+    /// The first NAF block is the title (provided the Title flag is set).
+    pub fn title(&self) -> Result<&str, Error> {
+        if let Some(title) = &self.title {
+            Ok(title)
+        } else {
+            panic!("No title in NAF Archive")
+        }
+    }
+
     /// Get the type of sequence in the archive being decoded.
     ///
     /// This method is a shortcut for `self.header().sequence_type()`.
@@ -349,6 +458,17 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
             .expect("lock shouldn't be poisoned")
     }
 
+    /// Return sequence lengths as a Vec<u64>
+    ///
+    /// Iterates through the lengths block, extracting all values.
+    pub fn lengths(&mut self) -> Vec<u64> {
+       if let Some(l) = &mut self.len {
+            l.into_iter().map(|x| x.unwrap()).collect::<Vec<u64>>()[1..].to_vec()
+        } else {
+            vec![]
+        }
+    }
+
     /// Attempt to read the next record from the archive.
     ///
     /// This function expects that a record is available; use `Decoder::next`
@@ -368,7 +488,7 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
             .map(|com| com.into_string().map(Cow::Owned).expect("TODO"));
         let length = self.len.as_mut().and_then(|r| r.next()).transpose()?;
 
-        let mut sequence: Option<Cow<'static, str>> = None;
+        let mut sequence: Option<Cow<'static, [u8]>> = None;
         let mut quality = None;
         if let Some(l) = length {
             sequence = self
@@ -376,7 +496,7 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
                 .as_mut()
                 .map(|r| r.next(l))
                 .transpose()?
-                .map(Cow::Owned);
+                .map(|com| Cow::from(com.as_bytes().to_owned()));
             quality = self
                 .qual
                 .as_mut()
@@ -399,7 +519,7 @@ impl<R: BufRead + Seek> Decoder<'_, R> {
     }
 
     /// Attempt to mask some regions of the given sequence.
-    fn mask_sequence(&mut self, sequence: &mut str) -> Result<(), Error> {
+    fn mask_sequence(&mut self, sequence: &mut [u8]) -> Result<(), Error> {
         let mut mask = self.unit.clone();
         let mut seq = sequence;
 
