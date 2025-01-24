@@ -11,7 +11,7 @@ use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::PyByteArray;
 use pyo3::types::PyBytes;
-use pyo3::types::PyLong;
+use pyo3::types::PyInt;
 
 // ---------------------------------------------------------------------------
 
@@ -21,7 +21,7 @@ macro_rules! transmute_file_error {
         // Attempt to transmute the Python OSError to an actual
         // Rust `std::io::Error` using `from_raw_os_error`.
         if $e.is_instance_of::<PyOSError>($py) {
-            if let Ok(code) = &$e.value_bound($py).getattr("errno") {
+            if let Ok(code) = &$e.value($py).getattr("errno") {
                 if let Ok(n) = code.extract::<i32>() {
                     return Err(IoError::from_raw_os_error(n));
                 }
@@ -50,19 +50,19 @@ impl PyFileRead {
         let py = file.py();
 
         let implementation = py
-            .import_bound(pyo3::intern!(py, "sys"))?
+            .import(pyo3::intern!(py, "sys"))?
             .getattr(pyo3::intern!(py, "implementation"))?
             .getattr(pyo3::intern!(py, "name"))?;
 
         if file.hasattr(pyo3::intern!(py, "readinto"))?
             && implementation.eq(pyo3::intern!(py, "cpython"))?
         {
-            let b = PyByteArray::new_bound(py, &[]);
+            let b = PyByteArray::new(py, &[]);
             if let Ok(res) = file.call_method1(pyo3::intern!(py, "readinto"), (b,)) {
-                if res.downcast::<PyLong>().is_ok() {
+                if res.downcast::<PyInt>().is_ok() {
                     return Ok({
                         PyFileRead {
-                            file: file.to_object(py),
+                            file: file.clone().unbind().into_any(),
                             has_readinto: true,
                         }
                     });
@@ -73,7 +73,7 @@ impl PyFileRead {
         let res = file.call_method1(pyo3::intern!(py, "read"), (0,))?;
         if res.downcast::<PyBytes>().is_ok() {
             Ok(PyFileRead {
-                file: file.to_object(py),
+                file: file.clone().unbind().into_any(),
                 has_readinto: false,
             })
         } else {
@@ -93,7 +93,7 @@ impl PyFileRead {
             {
                 Ok(obj) => {
                     // Check `fh.read` returned bytes, else raise a `TypeError`.
-                    if let Ok(bytes) = obj.extract::<&PyBytes>(py) {
+                    if let Ok(bytes) = obj.extract::<Bound<PyBytes>>(py) {
                         let b = bytes.as_bytes();
                         (&mut buf[..b.len()]).copy_from_slice(b);
                         Ok(b.len())
@@ -197,9 +197,9 @@ pub struct PyFileWrite {
 impl PyFileWrite {
     pub fn from_ref<'py>(file: &Bound<'py, PyAny>) -> PyResult<PyFileWrite> {
         let py = file.py();
-        file.call_method1(pyo3::intern!(py, "write"), (PyBytes::new_bound(py, b""),))?;
+        file.call_method1(pyo3::intern!(py, "write"), (PyBytes::new(py, b""),))?;
         Ok(Self {
-            file: file.to_object(py),
+            file: file.clone().unbind().into_any(),
         })
     }
 }

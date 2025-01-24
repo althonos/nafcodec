@@ -8,6 +8,7 @@ extern crate pyo3;
 mod pyfile;
 
 use std::borrow::Cow;
+use std::convert::Infallible;
 use std::io::BufReader;
 use std::ops::DerefMut;
 
@@ -79,7 +80,7 @@ fn convert_error(_py: Python, error: nafcodec::error::Error, path: Option<&str>)
 pub struct SequenceType(nafcodec::SequenceType);
 
 impl<'py> FromPyObject<'py> for SequenceType {
-    fn extract(ob: &'py PyAny) -> PyResult<Self> {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
         let py = ob.py();
         match ob.downcast::<PyString>()?.to_string_lossy().as_ref() {
             "dna" => Ok(SequenceType(nafcodec::SequenceType::Dna)),
@@ -87,25 +88,29 @@ impl<'py> FromPyObject<'py> for SequenceType {
             "protein" => Ok(SequenceType(nafcodec::SequenceType::Protein)),
             "text" => Ok(SequenceType(nafcodec::SequenceType::Text)),
             other => {
-                let msg =
-                    PyString::new_bound(py, "expected 'dna', 'rna', 'protein' or 'text', got {!r}")
-                        .call_method1("format", (other,))?
-                        .to_object(py);
+                let msg = PyString::new(py, "expected 'dna', 'rna', 'protein' or 'text', got {!r}")
+                    .call_method1("format", (other,))?
+                    .unbind()
+                    .into_any();
                 Err(PyValueError::new_err(msg))
             }
         }
     }
 }
 
-impl<'py> ToPyObject for SequenceType {
-    fn to_object(&self, py: Python<'_>) -> PyObject {
+impl<'py> IntoPyObject<'py> for SequenceType {
+    type Target = PyString;
+    type Output = Bound<'py, Self::Target>;
+    type Error = Infallible;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         let tag = match self.0 {
             nafcodec::SequenceType::Dna => pyo3::intern!(py, "dna"),
             nafcodec::SequenceType::Rna => pyo3::intern!(py, "rna"),
             nafcodec::SequenceType::Protein => pyo3::intern!(py, "protein"),
             nafcodec::SequenceType::Text => pyo3::intern!(py, "text"),
         };
-        tag.to_object(py)
+        Ok(tag.clone())
     }
 }
 
@@ -130,15 +135,16 @@ pub enum OpenMode {
 }
 
 impl<'py> FromPyObject<'py> for OpenMode {
-    fn extract(ob: &'py PyAny) -> PyResult<Self> {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
         let py = ob.py();
         match ob.downcast::<PyString>()?.to_string_lossy().as_ref() {
             "r" => Ok(OpenMode::Read),
             "w" => Ok(OpenMode::Write),
             other => {
-                let msg = PyString::new_bound(py, "expected 'r' or 'w', got {!r}")
+                let msg = PyString::new(py, "expected 'r' or 'w', got {!r}")
                     .call_method1("format", (other,))?
-                    .to_object(py);
+                    .unbind()
+                    .into_any();
                 Err(PyValueError::new_err(msg))
             }
         }
@@ -166,6 +172,23 @@ pub struct Record {
     /// `str` or `None`: The record sequence length.
     #[pyo3(get, set)]
     length: Option<u64>,
+}
+
+impl Record {
+    pub fn from_py<'py>(py: Python<'py>, record: nafcodec::Record) -> Self {
+        let id = record.id.map(|x| PyString::new(py, &x).into());
+        let sequence = record.sequence.map(|x| PyString::new(py, &x).into());
+        let comment = record.comment.map(|x| PyString::new(py, &x).into());
+        let quality = record.quality.map(|x| PyString::new(py, &x).into());
+        let length = record.length;
+        Self {
+            id,
+            sequence,
+            comment,
+            quality,
+            length,
+        }
+    }
 }
 
 #[pymethods]
@@ -220,10 +243,10 @@ impl Record {
         }))
     }
 
-    fn __repr__<'py>(slf: &Bound<'_, Self>) -> PyResult<PyObject> {
+    fn __repr__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
         let py = slf.py();
         let format = pyo3::intern!(py, "format");
-        let args = PyList::empty_bound(py);
+        let args = PyList::empty(py);
         let record = slf.borrow();
         if let Some(id) = &record.id {
             args.append(pyo3::intern!(py, "id={!r}").call_method1(format, (id,))?)?;
@@ -238,34 +261,15 @@ impl Record {
             args.append(pyo3::intern!(py, "quality={!r}").call_method1(format, (quality,))?)?;
         }
         if let Some(length) = &record.length {
-            args.append(format!("length={}", length).to_object(py))?;
+            args.append(format!("length={}", length))?;
         }
-        pyo3::intern!(py, "{}({})")
-            .call_method1(
-                format,
-                (
-                    slf.get_type().name()?,
-                    pyo3::intern!(py, ", ").call_method1("join", (args,))?,
-                ),
-            )
-            .map(|x| x.to_object(py))
-    }
-}
-
-impl<'a> pyo3::conversion::IntoPy<Record> for nafcodec::Record<'a> {
-    fn into_py(self, py: Python<'_>) -> Record {
-        let id = self.id.map(|x| PyString::new_bound(py, &x).into());
-        let sequence = self.sequence.map(|x| PyString::new_bound(py, &x).into());
-        let comment = self.comment.map(|x| PyString::new_bound(py, &x).into());
-        let quality = self.quality.map(|x| PyString::new_bound(py, &x).into());
-        let length = self.length;
-        Record {
-            id,
-            sequence,
-            comment,
-            quality,
-            length,
-        }
+        pyo3::intern!(py, "{}({})").call_method1(
+            format,
+            (
+                slf.get_type().name()?,
+                pyo3::intern!(py, ", ").call_method1("join", (args,))?,
+            ),
+        )
     }
 }
 
@@ -343,7 +347,7 @@ impl Decoder {
         builder.quality(quality);
         builder.mask(mask);
         builder.buffer_size(buffer_size.map(Ok).unwrap_or_else(|| {
-            py.import_bound(pyo3::intern!(py, "io"))?
+            py.import(pyo3::intern!(py, "io"))?
                 .getattr(pyo3::intern!(py, "DEFAULT_BUFFER_SIZE"))?
                 .extract::<usize>()
         })?);
@@ -357,7 +361,7 @@ impl Decoder {
             }
             Err(_e) => {
                 let path = py
-                    .import_bound("os")?
+                    .import("os")?
                     .call_method1(pyo3::intern!(py, "fspath"), (file,))?
                     .extract::<Bound<'_, PyString>>()?;
                 let path_str = path.to_str()?;
@@ -387,7 +391,7 @@ impl Decoder {
         let result = slf.deref_mut().decoder.next().transpose();
         match result {
             Ok(None) => Ok(None),
-            Ok(Some(record)) => Ok(Some(record.into_py(py))),
+            Ok(Some(record)) => Ok(Some(Record::from_py(py, record))),
             Err(e) => Err(convert_error(py, e, None)),
         }
     }
@@ -408,9 +412,8 @@ impl Decoder {
 
     /// `str`: The type of sequence stored in the archive.
     #[getter]
-    pub fn sequence_type(slf: PyRef<'_, Self>) -> PyObject {
-        let py = slf.py();
-        SequenceType(slf.decoder.sequence_type()).to_object(py)
+    pub fn sequence_type(slf: PyRef<'_, Self>) -> SequenceType {
+        SequenceType(slf.decoder.sequence_type())
     }
 
     /// `str`: The length of sequence lines in the original FASTA file.
@@ -450,7 +453,7 @@ impl Decoder {
         let result = slf.deref_mut().decoder.next().transpose();
         match result {
             Ok(None) => Ok(None),
-            Ok(Some(record)) => Ok(Some(record.into_py(py))),
+            Ok(Some(record)) => Ok(Some(Record::from_py(py, record))),
             Err(e) => Err(convert_error(py, e, None)),
         }
     }
@@ -492,7 +495,7 @@ impl Encoder {
             Ok(handle) => PyFileWriteWrapper::PyFile(handle),
             Err(_e) => {
                 let path = py
-                    .import_bound("os")?
+                    .import("os")?
                     .call_method1(pyo3::intern!(py, "fspath"), (file,))?
                     .extract::<Bound<'_, PyString>>()?;
                 let path_str = path.to_str()?;
@@ -640,15 +643,11 @@ pub fn init<'py>(py: Python<'py>, m: &Bound<'py, PyModule>) -> PyResult<()> {
         file: &Bound<'py, PyAny>,
         mode: OpenMode,
         options: Option<&Bound<'py, PyDict>>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Bound<'py, PyAny>> {
         let py = file.py();
         match mode {
-            OpenMode::Read => Ok(Decoder::type_object_bound(py)
-                .call((file,), options)?
-                .to_object(py)),
-            OpenMode::Write => Ok(Encoder::type_object_bound(py)
-                .call((file,), options)?
-                .to_object(py)),
+            OpenMode::Read => Decoder::type_object(py).call((file,), options),
+            OpenMode::Write => Encoder::type_object(py).call((file,), options),
         }
     }
 
