@@ -1,4 +1,88 @@
 [build-system]
-requires = ['setuptools', 'setuptools_rust']
-build-backend = "setuptools.build_meta"
+requires = ["maturin ~=1.2"]
+build-backend = "maturin"
 
+[project]
+name = "nafcodec"
+dynamic = ["version"]
+description = "PyO3 bindings and Python interface to nafcodec, an encoder/decoder for Nucleotide Archive Format (NAF) files."
+readme = 'nafcodec-py/README.md'
+requires-python = ">=3.7"
+license = "MIT"
+authors = [
+  { name = "Martin Larralde", email = "martin.larralde@embl.de" },
+]
+keywords = ["nucleotide", "archive", "biology", "bioinformatics"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed"
+]
+
+[project.license-files]
+paths = [ "COPYING" ]
+
+[project.urls]
+"Home Page" = "https://github.com/althonos/nafcodec/"
+"Bug Tracker" = "https://github.com/althonos/nafcodec/issues"
+"Changelog" = "https://github.com/althonos/nafcodec/blob/master/CHANGELOG.md"
+"Coverage" = "https://codecov.io/gh/althonos/nafcodec/"
+"Builds" = "https://github.com/althonos/nafcodec/actions/"
+"PyPI" = "https://pypi.org/project/nafcodec"
+
+[tool.maturin]
+manifest-path = "nafcodec-py/Cargo.toml"
+features = ["extension-module"]
+python-source = "nafcodec-py"
+module-name = "nafcodec.lib"
+
+[tool.cibuildwheel]
+skip = ["*-musllinux_i686"]
+before-build = "pip install maturin"
+test-command = "python -m unittest nafcodec.tests -v"
+build-verbosity = 1
+free-threaded-support = false
+
+[tool.cibuildwheel.linux]
+environment = { PATH="$PATH:$HOME/.cargo/bin" }
+before-all = "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y"
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if typing.TYPE_CHECKING:",
+    "@abc.abstractmethod",
+    "@abc.abstractproperty",
+    "raise NotImplementedError",
+    "return NotImplemented",
+    "raise UnexpectedError",
+    "raise AllocationError",
+]
+
+[tool.mypy]
+disallow_any_decorated = true
+disallow_any_generics = true
+disallow_any_unimported = false
+disallow_subclassing_any = false
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_return_any = true
