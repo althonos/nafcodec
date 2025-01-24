@@ -4,6 +4,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
+use std::os::raw::c_char;
 
 use pyo3::exceptions::PyOSError;
 use pyo3::exceptions::PyTypeError;
@@ -117,7 +118,7 @@ impl PyFileRead {
         Python::with_gil(|py| {
             let memview = unsafe {
                 let m = pyo3::ffi::PyMemoryView_FromMemory(
-                    buf.as_mut_ptr() as *mut i8,
+                    buf.as_mut_ptr() as *mut c_char,
                     buf.len() as isize,
                     pyo3::ffi::PyBUF_WRITE,
                 );
@@ -209,7 +210,7 @@ impl Write for PyFileWrite {
             // prepare a `memoryview` to expose the buffer
             let memview = unsafe {
                 let m = pyo3::ffi::PyMemoryView_FromMemory(
-                    buf.as_ptr() as *mut i8,
+                    buf.as_ptr() as *mut c_char,
                     buf.len() as isize,
                     pyo3::ffi::PyBUF_READ,
                 );
