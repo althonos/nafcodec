@@ -1,4 +1,5 @@
 use nom::IResult;
+use nom::Parser;
 
 use crate::data::Flag;
 use crate::data::Flags;
@@ -47,11 +48,12 @@ pub fn variable_u64(i: &[u8]) -> IResult<&[u8], u64> {
 }
 
 pub fn format_descriptor(i: &[u8]) -> IResult<&[u8], &[u8]> {
-    nom::bytes::streaming::tag([0x01, 0xF9, 0xEC])(i)
+    // NOTE: for some reason `nom::bytes::tag`
+    nom::combinator::verify(nom::bytes::take(3u32), |x: &[u8]| x == &[0x01, 0xF9, 0xEC]).parse(i)
 }
 
 pub fn format_version(i: &[u8]) -> IResult<&[u8], FormatVersion> {
-    match nom::combinator::verify(self::byte, |&byte: &u8| byte == 1 || byte == 2)(i) {
+    match nom::combinator::verify(self::byte, |&byte: &u8| byte == 1 || byte == 2).parse(i) {
         Err(e) => Err(e),
         Ok((i, 1)) => Ok((i, FormatVersion::V1)),
         Ok((i, 2)) => Ok((i, FormatVersion::V2)),
@@ -60,7 +62,7 @@ pub fn format_version(i: &[u8]) -> IResult<&[u8], FormatVersion> {
 }
 
 pub fn sequence_type(i: &[u8]) -> IResult<&[u8], SequenceType> {
-    match nom::combinator::verify(self::byte, |&byte: &u8| byte <= 0x03)(i) {
+    match nom::combinator::verify(self::byte, |&byte: &u8| byte <= 0x03).parse(i) {
         Err(e) => Err(e),
         Ok((i, 0)) => Ok((i, SequenceType::Dna)),
         Ok((i, 1)) => Ok((i, SequenceType::Rna)),
@@ -83,7 +85,9 @@ pub fn flags(i: &[u8]) -> IResult<&[u8], Flags> {
 }
 
 pub fn name_separator(i: &[u8]) -> IResult<&[u8], char> {
-    nom::combinator::verify(self::byte, self::is_printable)(i).map(|(i, c)| (i, c as char))
+    nom::combinator::verify(self::byte, self::is_printable)
+        .parse(i)
+        .map(|(i, c)| (i, c as char))
 }
 
 pub fn line_length(i: &[u8]) -> IResult<&[u8], u64> {
@@ -129,7 +133,8 @@ pub fn title(i: &[u8]) -> IResult<&[u8], &str> {
     let (i, text) = nom::combinator::map_res(
         nom::bytes::streaming::take(size as usize),
         std::str::from_utf8,
-    )(i)?;
+    )
+    .parse(i)?;
     Ok((i, text))
 }
 
