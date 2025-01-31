@@ -134,3 +134,42 @@ pub fn encode_quality() {
     assert_eq!(r2.quality, Some(Cow::from("#8AACCFF<FFGGFGE@@@@@")));
     assert!(r2.length.is_some());
 }
+
+#[test]
+pub fn encode_all() {
+    let mut encoder = EncoderBuilder::new(Dna)
+        .quality(true)
+        .sequence(true)
+        .id(true)
+        .comment(true)
+        .with_memory()
+        .unwrap();
+
+    let records = test_records();
+    encoder.push(&records[0]).unwrap();
+    encoder.push(&records[1]).unwrap();
+
+    let mut buffer = Vec::new();
+    encoder.write(&mut buffer).unwrap();
+
+    let mut decoder = Decoder::new(Cursor::new(buffer)).unwrap();
+    println!("{:?}", decoder.header());
+    assert!(decoder.header().flags().test(Flag::Id));
+    assert!(decoder.header().flags().test(Flag::Comment));
+    assert!(decoder.header().flags().test(Flag::Sequence));
+    assert!(decoder.header().flags().test(Flag::Quality));
+
+    let r1 = decoder.next().unwrap().unwrap();
+    assert_eq!(r1.id, Some(Cow::from("r1")));
+    assert_eq!(r1.comment, Some(Cow::from("record 1")));
+    assert_eq!(r1.sequence, Some(Cow::from("NGCTCTTAAACCTGCTA")));
+    assert_eq!(r1.quality, Some(Cow::from("#8CCCGGGGGGGGGGGG")));
+    assert!(r1.length.is_some());
+
+    let r2 = decoder.next().unwrap().unwrap();
+    assert_eq!(r2.id, Some(Cow::from("r2")));
+    assert_eq!(r2.comment, Some(Cow::from("record 2")));
+    assert_eq!(r2.sequence, Some(Cow::from("NTAATAAGCAATGACGGCAGC")));
+    assert_eq!(r2.quality, Some(Cow::from("#8AACCFF<FFGGFGE@@@@@")));
+    assert!(r2.length.is_some());
+}
