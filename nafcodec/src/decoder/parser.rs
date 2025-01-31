@@ -48,28 +48,28 @@ pub fn variable_u64(i: &[u8]) -> IResult<&[u8], u64> {
 }
 
 pub fn format_descriptor(i: &[u8]) -> IResult<&[u8], &[u8]> {
-    // NOTE: for some reason `nom::bytes::tag`
+    // NOTE: for some reason `nom::bytes::tag` does not work?
     nom::combinator::verify(nom::bytes::take(3u32), |x: &[u8]| x == &[0x01, 0xF9, 0xEC]).parse(i)
 }
 
 pub fn format_version(i: &[u8]) -> IResult<&[u8], FormatVersion> {
-    match nom::combinator::verify(self::byte, |&byte: &u8| byte == 1 || byte == 2).parse(i) {
-        Err(e) => Err(e),
-        Ok((i, 1)) => Ok((i, FormatVersion::V1)),
-        Ok((i, 2)) => Ok((i, FormatVersion::V2)),
-        _ => unreachable!(),
-    }
+    nom::combinator::map_res(self::byte, |byte: u8| match byte {
+        1 => Ok(FormatVersion::V1),
+        2 => Ok(FormatVersion::V2),
+        _ => Err("invalid format version"),
+    })
+    .parse(i)
 }
 
 pub fn sequence_type(i: &[u8]) -> IResult<&[u8], SequenceType> {
-    match nom::combinator::verify(self::byte, |&byte: &u8| byte <= 0x03).parse(i) {
-        Err(e) => Err(e),
-        Ok((i, 0)) => Ok((i, SequenceType::Dna)),
-        Ok((i, 1)) => Ok((i, SequenceType::Rna)),
-        Ok((i, 2)) => Ok((i, SequenceType::Protein)),
-        Ok((i, 3)) => Ok((i, SequenceType::Text)),
-        _ => unreachable!(),
-    }
+    nom::combinator::map_res(self::byte, |byte: u8| match byte {
+        0 => Ok(SequenceType::Dna),
+        1 => Ok(SequenceType::Rna),
+        2 => Ok(SequenceType::Protein),
+        3 => Ok(SequenceType::Text),
+        _ => Err("invalid sequence type"),
+    })
+    .parse(i)
 }
 
 pub fn flags(i: &[u8]) -> IResult<&[u8], Flags> {
