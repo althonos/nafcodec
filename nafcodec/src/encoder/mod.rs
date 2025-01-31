@@ -248,6 +248,13 @@ impl<S: Storage> Encoder<'_, S> {
     /// needs to be called once all records have been added to build the
     /// final archive.
     pub fn push(&mut self, record: &Record) -> Result<(), Error> {
+        let mut written_length = None;
+
+        if let Some(&length) = record.length.as_ref() {
+            write_length(length as u64, &mut self.len)?;
+            written_length = Some(length as u64);
+        }
+
         if let Some(id_writer) = self.id.as_mut() {
             if let Some(id) = record.id.as_ref() {
                 id_writer.write_all(id.as_bytes())?;
@@ -269,8 +276,18 @@ impl<S: Storage> Encoder<'_, S> {
 
         if let Some(seq_writer) = self.seq.as_mut() {
             if let Some(seq) = record.sequence.as_ref() {
-                let length = seq.len();
-                write_length(length as u64, &mut self.len)?;
+                match written_length {
+                    Some(length) => {
+                        if length != seq.len() as u64 {
+                            return Err(Error::InvalidLength);
+                        }
+                    }
+                    None => {
+                        let length = seq.len();
+                        write_length(length as u64, &mut self.len)?;
+                        written_length = Some(length as u64);
+                    }
+                }
                 if let Err(e) = seq_writer.write(seq.as_bytes()) {
                     if e.kind() == std::io::ErrorKind::InvalidData {
                         return Err(Error::InvalidSequence);
@@ -286,8 +303,18 @@ impl<S: Storage> Encoder<'_, S> {
 
         if let Some(qual_writer) = self.qual.as_mut() {
             if let Some(qual) = record.quality.as_ref() {
-                let length = qual.len();
-                write_length(length as u64, &mut self.len)?;
+                match written_length {
+                    Some(length) => {
+                        if length != qual.len() as u64 {
+                            return Err(Error::InvalidLength);
+                        }
+                    }
+                    None => {
+                        let length = qual.len();
+                        write_length(length as u64, &mut self.len)?;
+                        // written_length = Some(length as u64);
+                    }
+                }
                 qual_writer.write_all(qual.as_bytes())?;
                 qual_writer.flush()?;
             } else {

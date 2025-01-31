@@ -6,6 +6,7 @@ pub enum Error {
     Nom(nom::error::Error<Vec<u8>>),
     Utf8(std::str::Utf8Error),
     InvalidSequence,
+    InvalidLength,
     MissingField(&'static str),
 }
 
@@ -57,6 +58,7 @@ impl std::fmt::Display for Error {
             Error::Io(e) => e.fmt(f),
             Error::Nom(e) => nom::Err::Error(e).fmt(f),
             Error::Utf8(e) => e.fmt(f),
+            Error::InvalidLength => f.write_str("inconsistent sequence length"),
             Error::InvalidSequence => f.write_str("invalid character in sequence"),
             Error::MissingField(field) => write!(f, "missing record field: {:?}", field),
         }
@@ -69,6 +71,7 @@ impl std::error::Error for Error {
             Error::Io(e) => Some(e),
             Error::Utf8(e) => Some(e),
             Error::Nom(_) => None,
+            Error::InvalidLength => None,
             Error::InvalidSequence => None,
             Error::MissingField(_) => None,
         }

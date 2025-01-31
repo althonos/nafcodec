@@ -47,6 +47,7 @@ fn convert_error(_py: Python, error: nafcodec::error::Error, path: Option<&str>)
         Error::MissingField(field) => {
             PyValueError::new_err(format!("missing record field: {:?}", field))
         }
+        Error::InvalidLength => PyValueError::new_err("inconsistent sequence length"),
         Error::InvalidSequence => PyValueError::new_err("invalid characters found in sequence"),
         Error::Io(io_error) => {
             let desc = io_error.to_string();
