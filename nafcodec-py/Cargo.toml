@@ -11,6 +11,7 @@ readme = "README.md"
 keywords = ["nucleotide", "archive", "biology", "bioinformatics"]
 categories = ["science", "parser-implementations", "compression"]
 build = "nafcodec/build.rs"
+exclude = ["/benches"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -27,7 +28,7 @@ version = "0.3.0"
 default-features = false
 features = ["arc"]
 [dependencies]
-pyo3-built = "0.6.0"
+pyo3-built = "0.6"
 [dependencies.pyo3]
 version = "0.23.0"
 features = ["py-clone"]
