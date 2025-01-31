@@ -35,7 +35,7 @@ fn write_variable_length<W: Write>(mut n: u64, mut w: W) -> Result<(), IoError> 
 }
 
 fn write_length<W: Write>(mut l: u64, mut w: W) -> Result<(), IoError> {
-    while l > (u32::MAX as u64) {
+    while l >= (u32::MAX as u64) {
         w.write_all(&u32::MAX.to_le_bytes()[..])?;
         l -= u32::MAX as u64;
     }
@@ -360,6 +360,30 @@ impl<S: Storage> Encoder<'_, S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn variable_length() {
+        let mut v = Vec::<u8>::new();
+
+        macro_rules! assert_encoded {
+            ($n:expr, $encoding:expr) => {
+                v.clear();
+                write_variable_length($n, &mut v).unwrap();
+                assert_eq!(v, &$encoding);
+            };
+        }
+
+        assert_encoded!(0, [0x00]);
+        assert_encoded!(1, [0x01]);
+        assert_encoded!(9, [0x09]);
+        assert_encoded!(10, [0x0a]);
+        assert_encoded!(100, [0x64]);
+        assert_encoded!(127, [0x7f]);
+        assert_encoded!(128, [0x81, 0x00]);
+        assert_encoded!(129, [0x81, 0x01]);
+        assert_encoded!(34359738367, [0xff, 0xff, 0xff, 0xff, 0x7f]);
+        assert_encoded!(34359738368, [0x81, 0x80, 0x80, 0x80, 0x80, 0x00]);
+    }
 
     #[test]
     fn encoder_memory() {
