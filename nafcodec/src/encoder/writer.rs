@@ -63,11 +63,11 @@ impl<W: Write> Write for SequenceWriter<W> {
         }
 
         if self.ty == SequenceType::Protein || self.ty == SequenceType::Text {
-            return self.writer.write_all(s).map(|_| s.len());
+            return self.writer.write_all(s).map(|_| length);
         }
 
         let mut bytes = s;
-        let mut encoded = Vec::with_capacity((s.len() + 1) / 2);
+        let mut encoded = Vec::with_capacity((length + 1) / 2);
         if let Some(letter) = self.cache.take() {
             let c = (self.encode(s[0])? << 4) | self.encode(letter)?;
             encoded.push(c);
@@ -86,7 +86,7 @@ impl<W: Write> Write for SequenceWriter<W> {
 
         self.writer.write_all(&encoded)?;
         self.writer.flush()?;
-        Ok(encoded.len())
+        Ok(length)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
