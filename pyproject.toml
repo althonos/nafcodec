@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "PyO3 bindings and Python interface to nafcodec, an encoder/decoder for Nucleotide Archive Format (NAF) files."
 readme = 'nafcodec-py/README.md'
 requires-python = ">=3.7"
-license = "MIT"
+license = { file = "COPYING" }
 authors = [
   { name = "Martin Larralde", email = "martin.larralde@embl.de" },
 ]
@@ -35,8 +35,8 @@ classifiers = [
     "Typing :: Typed"
 ]
 
-[project.license-files]
-paths = [ "COPYING" ]
+#[project.license-files]
+#paths = [ "nafcodec-py/COPYING" ]
 
 [project.urls]
 "Home Page" = "https://github.com/althonos/nafcodec/"

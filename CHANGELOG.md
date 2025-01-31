@@ -6,7 +6,33 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 
 ## [Unreleased]
-[Unreleased]: https://github.com/althonos/uniprot.rs/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/althonos/uniprot.rs/compare/v0.3.0...HEAD
+
+
+## [v0.3.0] - 2024-01-31
+[v0.3.0]: https://github.com/althonos/uniprot.rs/compare/v0.2.0...v0.3.0
+
+### `nafcodec`
+
+#### Changed
+- Update `nom` to `v8.0`.
+
+#### Fixed
+- `Encoder::push` potentially recording length twice when given both sequence and quality string.
+- `SequenceWriter::write` not correctly reporting the number of bytes written for a sequence ([#3](https://github.com/althonos/nafcodec/issues/3)).
+
+
+### `nafcodec-py`
+
+#### Changed
+- Update `pyo3` to `v0.23`.
+- Drop compilation of `tempfile` in `nafcodec-py` wrapper.
+- Make fields of `Record` struct copy-on-write.
+- Avoid copying data from Python heap in `Encoder`.
+- Use `maturin` instead of `setuptools-rust` to build the Python wheels.
+
+#### Fixed
+- Use `std::os::raw::c_char` to fix Aarch64 build ([#2](https://github.com/althonos/nafcodec/issues/2)).
 
 
 ## [v0.2.0] - 2024-04-10

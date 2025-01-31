@@ -1,6 +1,6 @@
 [package]
 name = "nafcodec-py"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Martin Larralde <martin.larralde@embl.de>"]
 edition = "2021"
 license = "MIT"
@@ -23,7 +23,7 @@ features = ["chrono", "cargo-lock"]
 
 [dependencies.nafcodec]
 path = "../nafcodec"
-version = "0.2.0"
+version = "0.3.0"
 default-features = false
 features = ["arc"]
 [dependencies]
